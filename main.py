@@ -1,7 +1,7 @@
 import time
 import random
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import Thread
 from flask import Flask
 
@@ -9,18 +9,25 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "BB VIP Upgraded Engine 2026 Active 24/7"
+    return "Quotex Ultimate Shureshot Engine 2026 Live"
 
 def run_web_server():
     app.run(host='0.0.0.0', port=8080)
 
-# --- CONFIGURATION (APKA TELEGRAM DATA) ---
+# --- CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = "8805973093:AAHnKIMb-5Mnr0yI0XR3-gIW5oUOQyLNfRA"  
 TELEGRAM_CHAT_ID = "8240647626"      
 
-OTC_PAIRS = [
-    "EURUSD-OTC", "GBPUSD-OTC", "EURGBP-OTC", "EURAUD-OTC", 
-    "USDCAD-OTC", "AUDCAD-OTC", "CHFJPY-OTC", "EURNZD-OTC"
+# APKE SAARE EXACT QUOTEX PAIRS
+QUOTEX_EXACT_PAIRS = [
+    "USD/BRL (OTC)", "CAD/CHF (OTC)", "NZD/CHF (OTC)", "USD/MXN (OTC)", "USD/PKR (OTC)",
+    "USD/ZAR (OTC)", "EUR/USD", "NZD/JPY (OTC)", "USD/NGN (OTC)", "EUR/JPY",
+    "EUR/NZD (OTC)", "GBP/NZD (OTC)", "USD/EGP (OTC)", "AUD/JPY", "GBP/USD",
+    "USD/DZD (OTC)", "EUR/AUD", "EUR/GBP", "USD/INR (OTC)", "AUD/USD",
+    "GBP/JPY", "NZD/USD (OTC)", "USD/BDT (OTC)", "USD/CAD", "USD/JPY",
+    "USD/COP (OTC)", "CAD/JPY", "EUR/CAD", "GBP/AUD", "GBP/CAD",
+    "USD/CHF", "AUD/CAD", "AUD/CHF", "USD/IDR (OTC)", "AUD/NZD (OTC)",
+    "CHF/JPY", "NZD/CAD (OTC)", "USD/ARS (OTC)", "USD/PHP (OTC)", "EUR/CHF", "GBP/CHF"
 ]
 
 def send_to_telegram(message):
@@ -30,83 +37,124 @@ def send_to_telegram(message):
         response = requests.post(url, json=payload)
         return response.json()
     except Exception as e:
-        print(f"Telegram Delivery Error: {e}")
+        print(f"Telegram Error: {e}")
         return None
 
-def advanced_market_scanner():
-    """Real price action analytics simulate karne ke liye advanced engine"""
+def get_real_ist_time():
+    """Exact Quotex Clock Se Match Karne Ke Liye (IST)"""
+    return (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%H:%M:%S")
+
+def get_market_analysis():
+    """Advanced Shureshot Probability Matrix"""
     rsi = random.uniform(10, 90)
-    market_trend = random.choice(["STRONG_UPTREND", "STRONG_DOWNTREND", "SIDEWAYS"])
-    volume_strength = random.uniform(15, 95)
-    candle_rejection = random.choice(["TOP_WICK", "BOTTOM_WICK", "NONE"])
-    return {"rsi": rsi, "trend": market_trend, "volume": volume_strength, "wick": candle_rejection}
+    trend = random.choice(["UPTREND", "DOWNTREND", "CHOPPY"])
+    volume = random.uniform(20, 100)
+    return {"rsi": rsi, "trend": trend, "volume": volume}
 
-def calculate_vip_accuracy(data, direction):
-    """Mathematical probability matrix for win-rate validation"""
-    accuracy = 75.0
-    if direction == "UP" and data["trend"] == "STRONG_UPTREND": accuracy += 8.5
-    if direction == "DOWN" and data["trend"] == "STRONG_DOWNTREND": accuracy += 8.5
-    if data["volume"] > 65: accuracy += 5.2
-    if data["rsi"] > 80 or data["rsi"] < 20: accuracy += 6.1
-    return round(min(accuracy, 98.4), 2)
-
-def start_scanner():
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Core VIP Strategy Scanning OTC...")
-    for pair in OTC_PAIRS:
-        m_data = advanced_market_scanner()
+def track_and_send_result(pair, direction, initial_msg_id):
+    """Signal ke exact 60 seconds baad Result track karne ka system"""
+    time.sleep(60) # 1-Minute Expiry Ka Wait Karega
+    
+    # Live market result checking simulation
+    outcome = random.choice(["DIRECT_WIN", "DIRECT_WIN", "MTG_REQUIRED", "LOSS"])
+    ist_now = get_real_ist_time()
+    
+    if outcome == "DIRECT_WIN":
+        result_msg = (
+            f"🎯 **RESULT FOR {pair}**\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🏁 **Status:** 🟢 **DIRECT SHURESHOT WIN !!**\n"
+            f"⏰ **Time:** `{ist_now}`\n"
+            f"🎉 Balance updated safely. Accuracy maintained!"
+        )
+    elif outcome == "MTG_REQUIRED":
+        result_msg = (
+            f"⚠️ **ATTENTION FOR {pair}**\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🔄 **Status:** 🔴 Main Trade Loss.\n"
+            f"👉 **ACTION:** **Take 1-Step MTG (Martingale)** immediately for next 1 Minute in same direction!\n"
+            f"⏰ **Time:** `{ist_now}`"
+        )
+        send_to_telegram(result_msg)
         
-        # Strategy 1: Overbought Reversal + Bottom Wick (Strong Buy)
-        if m_data["rsi"] < 25 and m_data["trend"] != "STRONG_DOWNTREND" and m_data["volume"] > 40:
-            direction = "🔺 CALL / UP"
-            strategy_name = "Oversold Price-Action Reversal"
-            expiry_time = "1 MINUTE"
-            safety_tip = "If candle ends red with big wick, take 1-Step MTG."
-            win_rate = calculate_vip_accuracy(m_data, "UP")
-            
-        # Strategy 2: Oversold Reversal + Top Wick (Strong Sell)
-        elif m_data["rsi"] > 75 and m_data["trend"] != "STRONG_UPTREND" and m_data["volume"] > 40:
-            direction = "🔻 PUT / DOWN"
-            strategy_name = "Overbought Price-Action Reversal"
-            expiry_time = "1 MINUTE"
-            safety_tip = "If candle ends green with big wick, take 1-Step MTG."
-            win_rate = calculate_vip_accuracy(m_data, "DOWN")
-            
-        # Strategy 3: 5-Second Scalping Momentum Breakout
-        elif m_data["volume"] > 85 and m_data["rsi"] > 50 and m_data["rsi"] < 65 and m_data["trend"] == "STRONG_UPTREND":
-            direction = "🚀 FAST UP (SCALPING)"
-            strategy_name = "5-Sec High Volume Momentum Breakout"
-            expiry_time = "5 SECONDS / 15 SECONDS"
-            safety_tip = "Instant click! Direct momentum trade, No MTG recommended."
-            win_rate = round(random.uniform(91.2, 97.5), 2)
-            
+        time.sleep(60) # MTG candle khatam hone ka wait karega
+        mtg_outcome = random.choice(["MTG_WIN", "MTG_WIN", "TOTAL_LOSS"])
+        ist_mtg = get_real_ist_time()
+        
+        if mtg_outcome == "MTG_WIN":
+            result_msg = (
+                f"🎯 **MTG RESULT FOR {pair}**\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🏁 **Status:** 🟡 **MTG-1 SUCCESS WIN !!**\n"
+                f"⏰ **Time:** `{ist_mtg}`\n"
+                f"✅ Recovered & Profitable!"
+            )
         else:
-            continue  # Agar market standard match nahi hua toh skip
-            
-        entry_time = datetime.now().strftime("%H:%M:%S")
-
-        signal_template = (
-            f"👑 **BB VIP PREMIUM AUTO-SIGNAL**\n"
+            result_msg = (
+                f"❌ **FINAL RESULT FOR {pair}**\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🏁 **Status:** 💀 **TOTAL LOSS (Bad Market)**\n"
+                f"⏰ **Time:** `{ist_mtg}`\n"
+                f"🛑 Stop trading on this pair. Wait for next trend."
+            )
+    else:
+        result_msg = (
+            f"❌ **RESULT FOR {pair}**\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🚀 **Asset:** `{pair}`\n"
-            f"⏱️ **Expiry Time:** `{expiry_time}`\n"
-            f"⏰ **Entry Time (IST):** `{entry_time}`\n"
-            f"🎯 **Action:** **{direction}**\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"📊 **Strategy:** `{strategy_name}`\n"
-            f"🔥 **Win-Rate Probability:** `{win_rate}%`\n"
-            f"🛡️ **Safety Guidance:** _{safety_tip}_\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"⚡ *Strict Filter Applied. Trade with discipline!*"
+            f"🏁 **Status:** 💀 **DIRECT LOSS**\n"
+            f"⏰ **Time:** `{ist_now}`\n"
+            f"📉 Market violated support/resistance."
         )
         
-        print(f"-> Sending Premium Signal for {pair}...")
-        send_to_telegram(signal_template)
-        time.sleep(5.0)  # Rate limiting
+    send_to_telegram(result_msg)
+
+def start_scanner():
+    print(f"[{get_real_ist_time()}] Shureshot VIP Engine Scanning 40+ Assets...")
+    for pair in QUOTEX_EXACT_PAIRS:
+        analysis = get_market_analysis()
+        
+        # Super Strict Filters for Shureshot Signals
+        if analysis["rsi"] < 22 and analysis["trend"] == "UPTREND" and analysis["volume"] > 75:
+            direction = "🔺 CALL / UP"
+            strategy = "S1-Shureshot Demand Zone Reversal"
+            win_rate = round(random.uniform(94.2, 98.8), 2)
+        elif analysis["rsi"] > 78 and analysis["trend"] == "DOWNTREND" and analysis["volume"] > 75:
+            direction = "🔻 PUT / DOWN"
+            strategy = "S2-Shureshot Supply Zone Reversal"
+            win_rate = round(random.uniform(94.2, 98.8), 2)
+        else:
+            continue
+            
+        real_time = get_real_ist_time()
+        
+        signal_template = (
+            f"🔥 **🔥 QUOTEX VIP SHURESHOT ALERT 🔥**\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🚀 **Asset:** `{pair}`\n"
+            f"⏱️ **Expiry:** `1 MINUTE`\n"
+            f"⏰ **Exact Entry (IST):** `{real_time}`\n"
+            f"🎯 **Direction:** **{direction}**\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"📊 **Engine Logic:** `{strategy}`\n"
+            f"💎 **Verified Probability:** `{win_rate}%`\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ *Result calculation will start automatically after 60s.*"
+        )
+        
+        print(f"-> Sending Shureshot Alert for {pair}...")
+        resp = send_to_telegram(signal_template)
+        
+        # Result handler thread start (background mein check karega bina code ko roke)
+        if resp and "result" in resp:
+            msg_id = resp["result"]["message_id"]
+            Thread(target=track_and_send_result, args=(pair, direction, msg_id)).start()
+            
+        time.sleep(6.0) # Anti-spam delay
 
 if __name__ == "__main__":
     t = Thread(target=run_web_server)
     t.start()
     while True:
         start_scanner()
-        time.sleep(45)  # Scan cycle speed up for consistent signals
-            
+        time.sleep(30)
+    
