@@ -3,32 +3,24 @@ import time
 import json
 import requests
 import urllib3
-from quotexapi.stable_api import Quotex
 
-# SSL Warnings ko band karne ke liye
+# SSL Error bypass ke liye
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# GitHub Secrets se variables load karna
-EMAIL = os.environ.get("QUOTEX_EMAIL")
-PASSWORD = os.environ.get("QUOTEX_PASSWORD")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-# 5 Sahi Assets/Pairs ki list (Real + OTC)
-PAIRS = ["EURUSD", "GBPUSD", "EURUSD_OTC", "GBPUSD_OTC", "AUDUSD_OTC"]
+TEST_PAIRS = ["EURUSD_OTC", "GBPUSD_OTC", "AUDUSD_OTC"]
 
 def send_telegram_signal(pair, direction):
-    """Telegram par clean aur attractive signal bhejne ke liye function"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    
-    emoji = "🟢 CALL (UP)" if direction == "call" else "🔴 PUT (DOWN)"
+    emoji = "🟩 CALL (UP)" if direction == "UP" else "🟥 PUT (DOWN)"
     
     message = (
-        f"📊 *QUOTEX REAL-TIME SIGNAL* 📊\n\n"
+        f"🤖 *QUOTEX GITHUB BOT ACTIVE* 🤖\n\n"
         f"🌐 *Asset/Pair:* `{pair}`\n"
-        f"🎯 *Action:* {emoji}\n"
-        f"⏳ *Expiry:* `1 MINUTE`\n"
-        f"✅ *Status:* Safe Trade Setup"
+        f"📊 *Strategy:* `Fast Price Action`\n"
+        f"📈 *Signal:* *{emoji}*\n\n"
+        f"✅ *Status:* Connection is working flawlessly on GitHub!"
     )
     
     payload = {
@@ -40,39 +32,29 @@ def send_telegram_signal(pair, direction):
     try:
         response = requests.post(url, json=payload, verify=False, timeout=10)
         if response.status_code == 200:
-            print(f"🚀 Signal sent successfully for {pair}!")
+            print(f"👉 SUCCESS: Signal sent to Telegram for {pair}!")
         else:
-            print(f"❌ Telegram Error: {response.text}")
+            print(f"❌ Telegram API Error: {response.text}")
     except Exception as e:
-        print(f"❌ Connection Error while sending Telegram: {e}")
+        print(f"❌ Connection Error: {e}")
 
 def main():
-    print("--- QUOTEX TELEGRAM BOT STARTED ON GITHUB ACTIONS ---")
+    print("--- STARTING GITHUB BOT DIAGNOSTIC ---")
+    print(f"Target Chat ID: {TELEGRAM_CHAT_ID}")
     
-    # Quotex API Initialize aur Login
-    client = Quotex(email=EMAIL, password=PASSWORD)
-    check, reason = client.connect()
-    
-    if not check:
-        print(f"❌ Quotex Login Failed! Reason: {reason}")
-        return
+    # Bina folder dependancy ke direct loop chala kar signals test karna
+    pair_index = 0
+    # Test ke liye hum loop ko 3 baar chalayenge taaki workflow complete ho sake
+    for _ in range(3):
+        current_pair = TEST_PAIRS[pair_index]
+        direction = "UP" if pair_index % 2 == 0 else "DOWN"
         
-    print("✅ Quotex Account Connected Successfully!")
-    
-    # Loop chalu karke pairs par indicator check karna
-    # GitHub workflow test ke liye yeh pehle round mein hi instant test signals trigger karega
-    for pair in PAIRS:
-        print(f"Analyzing market structure for {pair}...")
+        send_telegram_signal(current_pair, direction)
         
-        # Ek sample signal generator logic (RSI/Moving Average ya Mock Test)
-        # Test ke liye hum dummy data fetch karke instant alert bhej rahe hain
-        direction = "call" if "USD" in pair else "put"
+        pair_index = (pair_index + 1) % len(TEST_PAIRS)
+        time.sleep(5)  # 5 second ka gap pairs ke beech mein
         
-        # Telegram par signal bhejna
-        send_telegram_signal(pair, direction)
-        time.sleep(2) # Rate limit se bachne ke liye 2 second ka gap
-        
-    print("--- ALL TEST SIGNALS SENT SUCCESSFULLY ---")
+    print("--- ALL TEST SIGNALS PROCESSED ---")
 
 if __name__ == "__main__":
     main()
