@@ -1,61 +1,125 @@
-import os
 import time
-import json
+import os
 import requests
-import urllib3
+import pandas as pd
+import numpy as np
+from quotexapi.stable_api import QuotexAPI
 
-# SSL Error bypass ke liye
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
+# ==================== CONFIGURATION ====================
+EMAIL = os.environ.get("QUOTEX_EMAIL")
+PASSWORD = os.environ.get("QUOTEX_PASSWORD")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-TEST_PAIRS = ["EURUSD_OTC", "GBPUSD_OTC", "AUDUSD_OTC"]
 
-def send_telegram_signal(pair, direction):
+# Sirf Quotex Ke Core OTC Assets Ko Target Karna
+ASSET = "EURUSD_OTC"  
+TIMEFRAME = 60  # 1-Min Candle Structure
+
+candle_memory = []
+# =======================================================
+
+def send_telegram_signal(pattern_name, direction):
+    """Next Candle Ke Prediction Ka Special Alert Function"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    emoji = "🟩 CALL (UP)" if direction == "UP" else "🟥 PUT (DOWN)"
+    
+    emoji = "🟩 CALL (UP) ⬆️" if direction == "UP" else "🟥 PUT (DOWN) ⬇️"
     
     message = (
-        f"🤖 *QUOTEX GITHUB BOT ACTIVE* 🤖\n\n"
-        f"🌐 *Asset/Pair:* `{pair}`\n"
-        f"📊 *Strategy:* `Fast Price Action`\n"
-        f"📈 *Signal:* *{emoji}*\n\n"
-        f"✅ *Status:* Connection is working flawlessly on GitHub!"
+        f"🎯 *QUOTEX OTC ALGO PREDICTION* 🎯\n\n"
+        f"🌐 *Asset/Pair:* `{ASSET}`\n"
+        f"⏳ *Timeframe:* 1-Minute OTC Stream\n"
+        f"📊 *Trigger Pattern:* `{pattern_name}`\n\n"
+        f"🚀 *NEXT CANDLE PREDICTION:* *{emoji}*\n"
+        f"⏰ *Expiry Time:* `1 MINUTE`\n\n"
+        f"✅ *Status:* Algorithmic Flow Tracking Confirmed!"
     )
     
-    payload = {
-        "chat_id": str(TELEGRAM_CHAT_ID),
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        response = requests.post(url, json=payload, verify=False, timeout=10)
-        if response.status_code == 200:
-            print(f"👉 SUCCESS: Signal sent to Telegram for {pair}!")
-        else:
-            print(f"❌ Telegram API Error: {response.text}")
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
+        requests.post(url, json=payload, timeout=10)
+    except:
+        pass
 
-def main():
-    print("--- STARTING GITHUB BOT DIAGNOSTIC ---")
-    print(f"Target Chat ID: {TELEGRAM_CHAT_ID}")
+def detect_chart_patterns(df):
+    """OTC Algorithm Movement Ko Track Karne Ki Logic"""
+    if len(df) < 5:
+        return None, None
+        
+    c1 = df.iloc[-1]  # Current Closed Candle
+    c2 = df.iloc[-2]  # Previous Candle
     
-    # Bina folder dependancy ke direct loop chala kar signals test karna
-    pair_index = 0
-    # Test ke liye hum loop ko 3 baar chalayenge taaki workflow complete ho sake
-    for _ in range(3):
-        current_pair = TEST_PAIRS[pair_index]
-        direction = "UP" if pair_index % 2 == 0 else "DOWN"
-        
-        send_telegram_signal(current_pair, direction)
-        
-        pair_index = (pair_index + 1) % len(TEST_PAIRS)
-        time.sleep(5)  # 5 second ka gap pairs ke beech mein
-        
-    print("--- ALL TEST SIGNALS PROCESSED ---")
+    c1_body = abs(c1['close'] - c1['open'])
+    c1_green = c1['close'] > c1['open']
+    c1_red = c1['close'] < c1['open']
+    c2_green = c2['close'] > c2['open']
+    c2_red = c2['close'] < c2['open']
 
-if __name__ == "__main__":
-    main()
+    # 1. OTC Trend Continuation (Engulfing Breakout)
+    if c2_red and c1_green and c1['close'] > c2['open'] and c1['open'] < c2['close']:
+        return "OTC Bullish Engulfing", "UP"
+    if c2_green and c1_red and c1['close'] < c2['open'] and c1['open'] > c2['close']:
+        return "OTC Bearish Engulfing", "DOWN"
+        
+    # 2. OTC Algorithmic Reversal (Wick Rejection)
+    c1_total_size = c1['high'] - c1['low']
+    lower_wick = min(c1['open'], c1['close']) - c1['low']
+    upper_wick = c1['high'] - max(c1['open'], c1['close'])
     
+    if c1_total_size > 0 and lower_wick > (2 * c1_body) and upper_wick < (0.2 * c1_total_size):
+        return "OTC Hammer (Price Action Reversal)", "UP"
+    if c1_total_size > 0 and upper_wick > (2 * c1_body) and lower_wick < (0.2 * c1_total_size):
+        return "OTC Shooting Star (Price Action Reversal)", "DOWN"
+        
+    return None, None
+
+if not EMAIL or not PASSWORD or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+    exit(1)
+
+# API Engine Initializing
+api = QuotexAPI(email=EMAIL, password=PASSWORD)
+check, reason = api.connect()
+
+if check:
+    api.change_balance("PRACTICE")
+    api.start_candles_stream(ASSET, size=TIMEFRAME)
+    last_candle_time = 0
+    
+    print(f"📡 System active! Tracking {ASSET} for Next Candle Predictions...")
+    
+    while True:
+        try:
+            if not api.check_connect():
+                api.connect()
+                api.start_candles_stream(ASSET, size=TIMEFRAME)
+                time.sleep(5)
+                continue
+                
+            candles = api.get_candles(ASSET)
+            if candles:
+                latest_candle = candles[-1]
+                
+                # Jaise hi ek candle khatam ho aur nai candle banne wali ho
+                if latest_candle['time'] > last_candle_time:
+                    last_candle_time = latest_candle['time']
+                    
+                    candle_memory.append({
+                        'time': latest_candle['time'],
+                        'open': float(latest_candle['open']),
+                        'high': float(latest_candle['high']),
+                        'low': float(latest_candle['low']),
+                        'close': float(latest_candle['close'])
+                    })
+                    
+                    if len(candle_memory) > 100:
+                        candle_memory.pop(0)
+                        
+                    df = pd.DataFrame(candle_memory)
+                    pattern, direction = detect_chart_patterns(df)
+                    
+                    # Pattern detect hote hi agla instant prediction blast karega
+                    if pattern and direction:
+                        send_telegram_signal(pattern, direction)
+                        
+        except Exception as e:
+            time.sleep(5)
+        time.sleep(1)
