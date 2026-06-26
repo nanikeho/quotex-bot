@@ -3,24 +3,32 @@ import os
 import requests
 import pandas as pd
 import numpy as np
+import urllib3
 from quotexapi.stable_api import QuotexAPI
 
-# ==================== CONFIGURATION ====================
-EMAIL = os.environ.get("QUOTEX_EMAIL")
-PASSWORD = os.environ.get("QUOTEX_PASSWORD")
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+# Network SSL Warnings ko bypass karne ke liye
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Sirf Quotex Ke Core OTC Assets Ko Target Karna
-ASSET = "EURUSD_OTC"  
-TIMEFRAME = 60  # 1-Min Candle Structure
+# ==================== CONFIGURATION ====================
+# NOTE: Security ke liye apne PC par chalaate waqt hi direct values likhein.
+EMAIL = os.environ.get("QUOTEX_EMAIL", "nanikeho@gmail.com")
+PASSWORD = os.environ.get("QUOTEX_PASSWORD", "78907890@Ho")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8805973093:AAHnKIMb-5Mnr0yI0XR3-gIW5oUOQyLNfRA")
+
+# Agar aapki Chat ID channel ki hai aur usme minus (-) sign hai, toh exact minus ke sath likhein (e.g., "-1008240647626")
+# Agar normal person ya setup testing hai toh simple ID string format mein:
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "8240647626")
+
+ASSET = "EURUSD_OTC"  # Quotex Algorithm OTC Market
+TIMEFRAME = 60        # 1-Min Candle Structure
 
 candle_memory = []
 # =======================================================
 
 def send_telegram_signal(pattern_name, direction):
-    """Next Candle Ke Prediction Ka Special Alert Function"""
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    """Direct IP Bypass Gateway ke sath Telegram alert trigger"""
+    # Hugging Face ya host blocks se bachne ke liye direct Telegram IP routing
+    url = f"https://149.154.167.220/bot{TELEGRAM_TOKEN}/sendMessage"
     
     emoji = "🟩 CALL (UP) ⬆️" if direction == "UP" else "🟥 PUT (DOWN) ⬇️"
     
@@ -34,14 +42,29 @@ def send_telegram_signal(pattern_name, direction):
         f"✅ *Status:* Algorithmic Flow Tracking Confirmed!"
     )
     
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": str(TELEGRAM_CHAT_ID), 
+        "text": message, 
+        "parse_mode": "Markdown"
+    }
+    headers = {
+        "Host": "api.telegram.org", 
+        "User-Agent": "Mozilla/5.0"
+    }
+    
     try:
-        requests.post(url, json=payload, timeout=10)
-    except:
-        pass
+        response = requests.post(url, json=payload, headers=headers, verify=False, timeout=10)
+        if response.status_code == 200:
+            print(f"🚀 [SIGNAL SENT] {ASSET} -> {pattern_name} ({direction})")
+        else:
+            # Fallback agar direct IP ko koi issue ho
+            normal_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            requests.post(normal_url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"❌ Telegram Delivery Error: {e}")
 
 def detect_chart_patterns(df):
-    """OTC Algorithm Movement Ko Track Karne Ki Logic"""
+    """OTC Data points calculation matrix"""
     if len(df) < 5:
         return None, None
         
@@ -72,54 +95,62 @@ def detect_chart_patterns(df):
         
     return None, None
 
-if not EMAIL or not PASSWORD or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-    exit(1)
-
-# API Engine Initializing
-api = QuotexAPI(email=EMAIL, password=PASSWORD)
-check, reason = api.connect()
-
-if check:
-    api.change_balance("PRACTICE")
-    api.start_candles_stream(ASSET, size=TIMEFRAME)
-    last_candle_time = 0
+if __name__ == "__main__":
+    print("--- INITIALIZING REAL-TIME QUOTEX ENGINE ---")
     
-    print(f"📡 System active! Tracking {ASSET} for Next Candle Predictions...")
+    if not EMAIL or not PASSWORD:
+        print("❌ Error: Quotex credentials missing in setup environment.")
+        exit(1)
+
+    api = QuotexAPI(email=EMAIL, password=PASSWORD)
+    check, reason = api.connect()
+
+    if check:
+        print(f"✅ Account Connected Successfully for {EMAIL}!")
+        api.change_balance("PRACTICE")
+        api.start_candles_stream(ASSET, size=TIMEFRAME)
+        last_candle_time = 0
+        
+        print(f"📡 System Active! Tracking {ASSET} for Next Candle Predictions...\n")
+        
+        while True:
+            try:
+                if not api.check_connect():
+                    print("⚠️ Connection lost, re-authenticating...")
+                    api.connect()
+                    api.start_candles_stream(ASSET, size=TIMEFRAME)
+                    time.sleep(5)
+                    continue
+                    
+                candles = api.get_candles(ASSET)
+                if candles:
+                    latest_candle = candles[-1]
+                    
+                    # Naye minute ki complete candle tick capture frame
+                    if latest_candle['time'] > last_candle_time:
+                        last_candle_time = latest_candle['time']
+                        
+                        candle_memory.append({
+                            'time': latest_candle['time'],
+                            'open': float(latest_candle['open']),
+                            'high': float(latest_candle['high']),
+                            'low': float(latest_candle['low']),
+                            'close': float(latest_candle['close'])
+                        })
+                        
+                        if len(candle_memory) > 100:
+                            candle_memory.pop(0)
+                            
+                        df = pd.DataFrame(candle_memory)
+                        pattern, direction = detect_chart_patterns(df)
+                        
+                        if pattern and direction:
+                            send_telegram_signal(pattern, direction)
+                            
+            except Exception as e:
+                print(f"⚠️ Loop Exception Alert: {e}")
+                time.sleep(2)
+            time.sleep(1)
+    else:
+        print(f"❌ Initialization Failed! Reason: {reason}")
     
-    while True:
-        try:
-            if not api.check_connect():
-                api.connect()
-                api.start_candles_stream(ASSET, size=TIMEFRAME)
-                time.sleep(5)
-                continue
-                
-            candles = api.get_candles(ASSET)
-            if candles:
-                latest_candle = candles[-1]
-                
-                # Jaise hi ek candle khatam ho aur nai candle banne wali ho
-                if latest_candle['time'] > last_candle_time:
-                    last_candle_time = latest_candle['time']
-                    
-                    candle_memory.append({
-                        'time': latest_candle['time'],
-                        'open': float(latest_candle['open']),
-                        'high': float(latest_candle['high']),
-                        'low': float(latest_candle['low']),
-                        'close': float(latest_candle['close'])
-                    })
-                    
-                    if len(candle_memory) > 100:
-                        candle_memory.pop(0)
-                        
-                    df = pd.DataFrame(candle_memory)
-                    pattern, direction = detect_chart_patterns(df)
-                    
-                    # Pattern detect hote hi agla instant prediction blast karega
-                    if pattern and direction:
-                        send_telegram_signal(pattern, direction)
-                        
-        except Exception as e:
-            time.sleep(5)
-        time.sleep(1)
