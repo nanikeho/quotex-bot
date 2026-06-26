@@ -1,8 +1,4 @@
-requests
-flask
-gunicorn
-Flask==3.0.3
-requests==2.32.3
-yfinance==0.2.40
-pandas==2.2.2
-pandas-ta==0.3.14b0
+websocket-client==1.6.1
+requests==2.31.0
+pandas==2.1.1
+numpy==1.26.0
