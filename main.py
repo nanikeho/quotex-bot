@@ -3,7 +3,7 @@ import os
 import logging
 import sqlite3
 import requests
-from quotexapi.client import QuotexClient
+from api_quotex.client import QuotexClient
 
 # Logging config taaki Render logs me live updates dikhein
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -81,7 +81,7 @@ async def analyze_market(client, asset):
     active_trade_info = {}
 
     async def check_trade_result(current_close):
-        """1 minute ke baad check karta hai ki trend continuation trade win hui ya loss"""
+        """1 minute ke baad check karta hai ki trade win hui ya loss"""
         nonlocal trade_active, active_trade_info
         open_price = active_trade_info["open_price"]
         action = active_trade_info["action"]
@@ -111,16 +111,14 @@ async def analyze_market(client, asset):
             last_candle_close = current_close
             continue
 
-        # Agar pichle minute koi signal generated tha, toh sabse pehle uska result check hoga
+        # Agar pichle minute koi signal generated था, toh sabse pehle uska result check hoga
         if trade_active:
             await check_trade_result(current_close)
 
         action = None
         # Candlestick Psychology Trend Rider Logic
-        # Agar consecutive green candles hain aur market strong up direction me hai
         if current_close > current_open and current_open > last_candle_close:
             action = "CALL"
-        # Agar consecutive red candles hain aur market down trend me hai
         elif current_close < current_open and current_open < last_candle_close:
             action = "PUT"
 
