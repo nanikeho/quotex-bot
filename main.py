@@ -4,6 +4,16 @@ import sqlite3
 import requests
 import threading
 from datetime import datetime
+from flask import Flask  # Local Web Server ke liye
+
+# 1. FLASK WEB APP ARCHITECTURE
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    # Yeh aapki local website ka main page banayega
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f"🟢 QUANTUM MATRIX V2 IS ONLINE 24/7<br>Last Scan Heartbeat: {current_time} IST"
 
 # Server Core Environment Setup
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -35,7 +45,6 @@ def send_upgraded_signal(asset, pattern, prediction, confidence, trade_type):
         
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     
-    # Visual Matrix Setup
     if prediction == "CALL":
         emoji = "🟢 GO CALL (BUY) NEXT"
         trend_flow = "📈 BULLISH REPLICATOR"
@@ -57,19 +66,15 @@ def send_upgraded_signal(asset, pattern, prediction, confidence, trade_type):
         f"⏰ **Timestamp (IST)** : `{current_time}`\n"
         f"🔮 **Safety Filter** : `Strict 1-Step M1G Backup Active`\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🧠 *Status*: 24/7 Deep Thread Analysis Active."
+        f"🧠 *Status*: 24/7 Web-Hook Service Active."
     )
     
     try:
         requests.post(url, json={"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
-        print(f"📡 Advanced Signal Dispatched: {asset.upper()} -> {prediction}")
     except Exception as e:
-        print(f"📡 Telemetry Push Error on {asset}: {e}")
+        print(f"📡 Telemetry Push Error: {e}")
 
 def advanced_analytics_engine(asset, current_sequence):
-    """
-    Advanced Statistical Matching Framework
-    """
     with db_lock:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -96,7 +101,6 @@ def advanced_analytics_engine(asset, current_sequence):
     if total_matrix < 5: 
         return 
         
-    # Mathematical Direction Evaluation
     if total_calls >= total_puts:
         predicted_future = "CALL"
         confidence = (total_calls / total_matrix) * 100
@@ -106,63 +110,35 @@ def advanced_analytics_engine(asset, current_sequence):
         confidence = (total_puts / total_matrix) * 100
         m1g_ratio = (puts_data["m1g"] / total_puts) if total_puts > 0 else 0
         
-    # Dynamic Security Thresholding
     required_accuracy = 86.0 if "G" in current_sequence and "R" in current_sequence else 82.0
     
     if confidence >= required_accuracy:
         trade_type = "DIRECT SURESHOT (V1)" if m1g_ratio < 0.15 else "MARTINGALE PREFERRED (M1G)"
         send_upgraded_signal(asset, current_sequence, predicted_future, confidence, trade_type)
 
-def seed_advanced_database():
+# 🌍 COMPLETE 33 PAIRS LIST
+ALL_QUOTEX_OTC_PAIRS = [
+    "eurusd_otc", "gbpusd_otc", "usdinr_otc", "usdsub_otc", "audcad_otc", "eurjpy_otc", 
+    "gbpjpy_otc", "usdchf_otc", "nzdusd_otc", "audusd_otc", "usdcad_otc", "eurich_otc",
+    "chfjpy_otc", "cadchf_otc", "eurgbp_otc", "audjpy_otc", "usdpkr_otc", "usdbdt_otc", 
+    "usdbrl_otc", "audnzd_otc", "eurnzd_otc", "gbpnzd_otc", "nzdcad_otc", "nzdchf_otc", 
+    "nzdjpy_otc", "usdars_otc", "usdcop_otc", "usdegp_otc", "usdidr_otc", "usdmxn_otc", 
+    "usdngn_otc", "usdzar_otc", "usdphp_otc"
+]
+
+# 2. BACKGROUND SCANNING LOOP (Ab ye website ke sath parallel chalega)
+def trading_bot_loop():
+    init_db()
     with db_lock:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-        
-        sample_matrix = []
         for pair in ALL_QUOTEX_OTC_PAIRS:
-            sample_matrix.extend([
-                (pair, "GGG", "PUT", 65, 8),   
-                (pair, "RRR", "CALL", 62, 5),  
-                (pair, "GRG", "PUT", 52, 12),  
-                (pair, "RGR", "CALL", 50, 10),
-                (pair, "GGGG", "PUT", 72, 3),   
-                (pair, "RRRR", "CALL", 70, 2)
-            ])
-            
-        try:
-            cursor.executemany("INSERT INTO pattern_logs (asset, sequence_code, next_candle, occurrence_count, martingale_recovery) VALUES (?, ?, ?, ?, ?)", sample_matrix)
-            conn.commit()
-        except Exception:
-            pass
-        finally:
-            conn.close()
+            cursor.execute("INSERT OR IGNORE INTO pattern_logs (asset, sequence_code, next_candle, occurrence_count) VALUES (?, 'RRR', 'CALL', 65)", (pair,))
+        conn.commit()
+        conn.close()
 
-# 🌍 UPDATED QUOTEX GLOBAL OTC GRID MAP (TOTAL 33 PAIRS)
-ALL_QUOTEX_OTC_PAIRS = [
-    # Original Base Pairs Saved
-    "eurusd_otc", "gbpusd_otc", "usdinr_otc", "usdsub_otc", 
-    "audcad_otc", "eurjpy_otc", "gbpjpy_otc", "usdchf_otc",
-    "nzdusd_otc", "audusd_otc", "usdcad_otc", "eurich_otc",
-    "chfjpy_otc", "cadchf_otc", "eurgbp_otc", "audjpy_otc",
-    "usdpkr_otc", "usdbdt_otc", "usdbrl_otc",
-    
-    # Newly Added Pairs
-    "audnzd_otc", "eurnzd_otc", "gbpnzd_otc", "nzdcad_otc", 
-    "nzdchf_otc", "nzdjpy_otc", "usdars_otc", "usdcop_otc", 
-    "usdegp_otc", "usdidr_otc", "usdmxn_otc", "usdngn_otc", 
-    "usdzar_otc", "usdphp_otc"
-]
-
-if __name__ == "__main__":
-    init_db()
-    seed_advanced_database()
-    
-    print(f"⚡ Quantum Grid V2 Engaged: 24/7 Deep Thread Analysis Activated across {len(ALL_QUOTEX_OTC_PAIRS)} assets...")
-    
-    # Continuous Analytics Loop
     while True:
         threads = []
-        
         current_hour = datetime.now().hour
         simulated_live_pattern = "GGGG" if current_hour % 2 == 0 else "RRR"
         
@@ -173,5 +149,16 @@ if __name__ == "__main__":
             
         for t in threads:
             t.join()
+            time.sleep(0.3)  # Telegram API protection gap
             
         time.sleep(60)
+
+if __name__ == "__main__":
+    # Bot ke loop ko alag thread me daal rahe hain taaki website aur bot ek sath chalein
+    bot_thread = threading.Thread(target=trading_bot_loop)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # Render ka port system binding trigger
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
