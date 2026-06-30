@@ -11,7 +11,6 @@ DB_NAME = "/tmp/otc_future_matrix.db"  # Resolved container paths
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Complex pattern mapping database configuration
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pattern_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,14 +49,9 @@ def send_future_signal_to_telegram(asset, pattern, prediction, confidence):
         print(f"❌ Dispatch failed: {e}")
 
 def predict_future_candle(asset, current_sequence):
-    """
-    Live sequence ko core database matrix se match karke 
-    agli candle (Future) ka mathematical verification karna
-    """
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Query to check past replication history of this exact pattern
     cursor.execute("""
         SELECT next_candle, SUM(occurrence_count) 
         FROM pattern_logs 
@@ -72,7 +66,6 @@ def predict_future_candle(asset, current_sequence):
         print(f"⏳ Pattern '{current_sequence}' is unique. Scanning alternative data blocks...")
         return
         
-    # Probability Matrix Calculation
     data = {row[0]: row[1] for row in rows}
     calls = data.get("CALL", 0)
     puts = data.get("PUT", 0)
@@ -88,18 +81,15 @@ def predict_future_candle(asset, current_sequence):
         confidence = (puts / total) * 100
         predicted_future = "PUT"
         
-    # Send alert ONLY if algorithm confidence is above 82% (High-Probability Sureshot Zone)
     if confidence >= 82.0:
         send_future_signal_to_telegram(asset, current_sequence, predicted_future, confidence)
 
 def seed_future_patterns():
-    """Algorithm simulation matrix data seed"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Mocking structural repetitions based on standard OTC loop shifts
     sample_matrix = [
-        ("EURUSD_otc", "GGG", "PUT", 45),  # 3 Green ke baad Red ki high probability
-        ("EURUSD_otc", "RRR", "CALL", 42), # 3 Red ke baad Green
+        ("EURUSD_otc", "GGG", "PUT", 45),  
+        ("EURUSD_otc", "RRR", "CALL", 42), 
         ("EURUSD_otc", "GRG", "CALL", 38), 
         ("USDINR_otc", "GGG", "PUT", 50),
         ("USDINR_otc", "RRG", "CALL", 48)
@@ -116,11 +106,8 @@ if __name__ == "__main__":
     init_db()
     seed_future_patterns()
     
-    # Target Active Pairs for Replication Scan
     ASSETS = ["EURUSD_otc", "USDINR_otc"]
-    
-    # GitHub Actions runtime scenario analysis simulation check
-    current_live_pattern = "GGG"  # Example Matrix Indicator
+    current_live_pattern = "RRR"  
     
     for pair in ASSETS:
         predict_future_candle(pair, current_live_pattern)
