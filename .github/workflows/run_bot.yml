@@ -1,9 +1,12 @@
 name: Quotex OTC Future Engine
 
 on:
+  push:
+    branches:
+      - main
   schedule:
-    - cron: '*/5 * * * *' # Yeh har 5 minute me background network ko trigger karega
-  workflow_dispatch: # Manual run button
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-predictive-matrix:
@@ -23,4 +26,3 @@ jobs:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: python main.py
-      
