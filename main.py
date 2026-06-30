@@ -1,24 +1,23 @@
 import os
 import sqlite3
 import requests
-import pandas as pd
 from datetime import datetime
 
-# GitHub Secrets Framework
+# GitHub Secrets Framework Configuration
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-DB_NAME = "otc_future_matrix.db"
+DB_NAME = "/tmp/otc_future_matrix.db"  # Resolved container paths
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Complex pattern mapping database
+    # Complex pattern mapping database configuration
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pattern_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             asset TEXT,
-            sequence_code TEXT,  # Example: GGR (Green Green Red)
-            next_candle TEXT,    # Future prediction: CALL or PUT
+            sequence_code TEXT,  
+            next_candle TEXT,    
             occurrence_count INTEGER
         )
     ''')
@@ -27,6 +26,7 @@ def init_db():
 
 def send_future_signal_to_telegram(asset, pattern, prediction, confidence):
     if not BOT_TOKEN or not CHAT_ID:
+        print("⚠️ Telegram Secrets configurations missing.")
         return
         
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -34,7 +34,7 @@ def send_future_signal_to_telegram(asset, pattern, prediction, confidence):
     current_time = datetime.now().strftime("%H:%M")
     
     text = (
-        f"🔮 **AI OTC FUTURE PREDICATOR** 🔮\n\n"
+        f"🔮 **AI OTC FUTURE PREDICTOR** 🔮\n\n"
         f"🎯 **Asset Target**: `{asset}`\n"
         f"📊 **Detected Pattern**: `{pattern}`\n"
         f"🚀 **Future Action**: *{emoji}*\n"
@@ -78,7 +78,8 @@ def predict_future_candle(asset, current_sequence):
     puts = data.get("PUT", 0)
     total = calls + puts
     
-    if total < 5: return # Filter low statistics nodes
+    if total < 5: 
+        return 
     
     if calls >= puts:
         confidence = (calls / total) * 100
@@ -101,7 +102,7 @@ def seed_future_patterns():
         ("EURUSD_otc", "RRR", "CALL", 42), # 3 Red ke baad Green
         ("EURUSD_otc", "GRG", "CALL", 38), 
         ("USDINR_otc", "GGG", "PUT", 50),
-        ("USDINR_otc", "RRG", "GREEN", 48)
+        ("USDINR_otc", "RRG", "CALL", 48)
     ]
     try:
         cursor.executemany("INSERT INTO pattern_logs (asset, sequence_code, next_candle, occurrence_count) VALUES (?, ?, ?, ?)", sample_matrix)
@@ -115,12 +116,11 @@ if __name__ == "__main__":
     init_db()
     seed_future_patterns()
     
-    # Target Active Pairs
+    # Target Active Pairs for Replication Scan
     ASSETS = ["EURUSD_otc", "USDINR_otc"]
     
-    # GitHub Actions runtime scenario analysis
-    # Live market simulation check (Real-time tracking mock sequence)
-    current_live_pattern = "GGG" # Example: Live market me 3 green candles bani hain
+    # GitHub Actions runtime scenario analysis simulation check
+    current_live_pattern = "GGG"  # Example Matrix Indicator
     
     for pair in ASSETS:
         predict_future_candle(pair, current_live_pattern)
