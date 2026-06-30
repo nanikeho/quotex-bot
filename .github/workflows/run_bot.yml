@@ -1,32 +1,26 @@
-name: Quotex Telegram Bot
+name: Quotex OTC Future Engine
 
 on:
-  push:
-    branches: [ main ]
   schedule:
-    - cron: '*/5 * * * *' # Har 5 minute mein check karega
+    - cron: '*/5 * * * *' # Yeh har 5 minute me background network ko trigger karega
+  workflow_dispatch: # Manual run button
 
 jobs:
-  run-bot:
+  run-predictive-matrix:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Install Dependencies
+    - name: Install Modules
       run: |
-        pip install requests pandas numpy websocket-client
-
-    - name: Run Quotex Bot
+        pip install -r requirements.txt
+    - name: Run Future Predictor Engine
       env:
-        QUOTEX_EMAIL: ${{ secrets.QUOTEX_EMAIL }}
-        QUOTEX_PASSWORD: ${{ secrets.QUOTEX_PASSWORD }}
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: python main.py
       
