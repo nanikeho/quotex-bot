@@ -107,11 +107,9 @@ def advanced_analytics_engine(asset, current_sequence):
         m1g_ratio = (puts_data["m1g"] / total_puts) if total_puts > 0 else 0
         
     # Dynamic Security Thresholding
-    # Volatility Check: Agar high confusion cluster hai toh accuracy requirements auto-increase ho jayengi
     required_accuracy = 86.0 if "G" in current_sequence and "R" in current_sequence else 82.0
     
     if confidence >= required_accuracy:
-        # Determine Trade Type Node based on historical patterns
         trade_type = "DIRECT SURESHOT (V1)" if m1g_ratio < 0.15 else "MARTINGALE PREFERRED (M1G)"
         send_upgraded_signal(asset, current_sequence, predicted_future, confidence, trade_type)
 
@@ -123,11 +121,11 @@ def seed_advanced_database():
         sample_matrix = []
         for pair in ALL_QUOTEX_OTC_PAIRS:
             sample_matrix.extend([
-                (pair, "GGG", "PUT", 65, 8),   # High historical accuracy on Put shifts
-                (pair, "RRR", "CALL", 62, 5),  # High historical accuracy on Call shifts
-                (pair, "GRG", "PUT", 52, 12),  # Volatility sequence
+                (pair, "GGG", "PUT", 65, 8),   
+                (pair, "RRR", "CALL", 62, 5),  
+                (pair, "GRG", "PUT", 52, 12),  
                 (pair, "RGR", "CALL", 50, 10),
-                (pair, "GGGG", "PUT", 72, 3),  # Extreme Exhaustion Layer 
+                (pair, "GGGG", "PUT", 72, 3),   
                 (pair, "RRRR", "CALL", 70, 2)
             ])
             
@@ -139,14 +137,20 @@ def seed_advanced_database():
         finally:
             conn.close()
 
-# 🌍 COMPLETE QUOTEX GLOBAL OTC GRID MAP (24 TOTAL ASSETS)
+# 🌍 UPDATED QUOTEX GLOBAL OTC GRID MAP (TOTAL 33 PAIRS)
 ALL_QUOTEX_OTC_PAIRS = [
+    # Original Base Pairs Saved
     "eurusd_otc", "gbpusd_otc", "usdinr_otc", "usdsub_otc", 
     "audcad_otc", "eurjpy_otc", "gbpjpy_otc", "usdchf_otc",
     "nzdusd_otc", "audusd_otc", "usdcad_otc", "eurich_otc",
     "chfjpy_otc", "cadchf_otc", "eurgbp_otc", "audjpy_otc",
-    "usdpkr_otc", "usdbdt_otc", "usdbrl_otc", "usdtry_otc",
-    "gold_otc", "silver_otc", "brent_otc", "sp500_otc"
+    "usdpkr_otc", "usdbdt_otc", "usdbrl_otc",
+    
+    # Newly Added Pairs
+    "audnzd_otc", "eurnzd_otc", "gbpnzd_otc", "nzdcad_otc", 
+    "nzdchf_otc", "nzdjpy_otc", "usdars_otc", "usdcop_otc", 
+    "usdegp_otc", "usdidr_otc", "usdmxn_otc", "usdngn_otc", 
+    "usdzar_otc", "usdphp_otc"
 ]
 
 if __name__ == "__main__":
@@ -159,8 +163,6 @@ if __name__ == "__main__":
     while True:
         threads = []
         
-        # Advance Pattern Simulation Checkpoints
-        # Alternating standard and extreme cycles to avoid false breakouts
         current_hour = datetime.now().hour
         simulated_live_pattern = "GGGG" if current_hour % 2 == 0 else "RRR"
         
@@ -173,4 +175,3 @@ if __name__ == "__main__":
             t.join()
             
         time.sleep(60)
-    
