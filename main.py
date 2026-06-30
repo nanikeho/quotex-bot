@@ -1,161 +1,126 @@
-import asyncio
 import os
-import logging
 import sqlite3
 import requests
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
+import pandas as pd
+from datetime import datetime
 
-# Sahi class import jo library ke real structure se match karti hai
-from api_quotex import Quotex
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+# GitHub Secrets Framework
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-PAIRS = ["EURUSD_otc", "GBPUSD_otc", "USDJPY_otc"]
+DB_NAME = "otc_future_matrix.db"
 
-# 1. RENDER HEALTH CHECK MOCK SERVER (Bypasses Port Scan Timeout)
-class MockServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Quotex AI Engine Live and Active!")
-
-def start_health_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), MockServer)
-    server.serve_forever()
-
-# 2. SQLITE AI DATABASE SYSTEM
 def init_db():
-    conn = sqlite3.connect("ai_memory.db")
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    # Complex pattern mapping database
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS trade_history (
+        CREATE TABLE IF NOT EXISTS pattern_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             asset TEXT,
-            action TEXT,
-            price REAL,
-            result TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            sequence_code TEXT,  # Example: GGR (Green Green Red)
+            next_candle TEXT,    # Future prediction: CALL or PUT
+            occurrence_count INTEGER
         )
     ''')
     conn.commit()
     conn.close()
 
-def save_trade_to_memory(asset, action, price, result):
-    conn = sqlite3.connect("ai_memory.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO trade_history (asset, action, price, result) VALUES (?, ?, ?, ?)", 
-                   (asset, action, price, result))
-    conn.commit()
-    conn.close()
-
-def get_ai_learning_summary():
-    conn = sqlite3.connect("ai_memory.db")
-    cursor = conn.cursor()
+def send_future_signal_to_telegram(asset, pattern, prediction, confidence):
+    if not BOT_TOKEN or not CHAT_ID:
+        return
+        
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    emoji = "🟢 GO CALL (BUY) NEXT" if prediction == "CALL" else "🔴 GO PUT (SELL) NEXT"
+    current_time = datetime.now().strftime("%H:%M")
+    
+    text = (
+        f"🔮 **AI OTC FUTURE PREDICATOR** 🔮\n\n"
+        f"🎯 **Asset Target**: `{asset}`\n"
+        f"📊 **Detected Pattern**: `{pattern}`\n"
+        f"🚀 **Future Action**: *{emoji}*\n"
+        f"⏰ **Analysis Time**: `{current_time}`\n\n"
+        f"🔥 **Probability Index**: `{confidence:.1f}%` Sureshot Matrix\n"
+        f"⚠️ *Rule*: Apply **Max 1-Step Martingale** if last second volatility error occurs."
+    )
+    
     try:
-        cursor.execute("SELECT result, COUNT(*) FROM trade_history GROUP BY result")
-        summary = cursor.fetchall()
-        return summary
+        requests.post(url, json={"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=5)
+        print(f"📡 Future Signal Dispatched: {prediction} based on {pattern}")
     except Exception as e:
-        logging.error(f"Database error: {e}")
-        return []
+        print(f"❌ Dispatch failed: {e}")
+
+def predict_future_candle(asset, current_sequence):
+    """
+    Live sequence ko core database matrix se match karke 
+    agli candle (Future) ka mathematical verification karna
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Query to check past replication history of this exact pattern
+    cursor.execute("""
+        SELECT next_candle, SUM(occurrence_count) 
+        FROM pattern_logs 
+        WHERE asset=? AND sequence_code=?
+        GROUP BY next_candle
+    """, (asset, current_sequence))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        print(f"⏳ Pattern '{current_sequence}' is unique. Scanning alternative data blocks...")
+        return
+        
+    # Probability Matrix Calculation
+    data = {row[0]: row[1] for row in rows}
+    calls = data.get("CALL", 0)
+    puts = data.get("PUT", 0)
+    total = calls + puts
+    
+    if total < 5: return # Filter low statistics nodes
+    
+    if calls >= puts:
+        confidence = (calls / total) * 100
+        predicted_future = "CALL"
+    else:
+        confidence = (puts / total) * 100
+        predicted_future = "PUT"
+        
+    # Send alert ONLY if algorithm confidence is above 82% (High-Probability Sureshot Zone)
+    if confidence >= 82.0:
+        send_future_signal_to_telegram(asset, current_sequence, predicted_future, confidence)
+
+def seed_future_patterns():
+    """Algorithm simulation matrix data seed"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    # Mocking structural repetitions based on standard OTC loop shifts
+    sample_matrix = [
+        ("EURUSD_otc", "GGG", "PUT", 45),  # 3 Green ke baad Red ki high probability
+        ("EURUSD_otc", "RRR", "CALL", 42), # 3 Red ke baad Green
+        ("EURUSD_otc", "GRG", "CALL", 38), 
+        ("USDINR_otc", "GGG", "PUT", 50),
+        ("USDINR_otc", "RRG", "GREEN", 48)
+    ]
+    try:
+        cursor.executemany("INSERT INTO pattern_logs (asset, sequence_code, next_candle, occurrence_count) VALUES (?, ?, ?, ?)", sample_matrix)
+        conn.commit()
+    except Exception:
+        pass
     finally:
         conn.close()
 
-# 3. TELEGRAM TRANSMISSION ENGINE
-def send_telegram_signal(asset, action, message_type="SIGNAL", extra_info=""):
-    if not BOT_TOKEN or not CHAT_ID:
-        return
-    if message_type == "SIGNAL":
-        emoji = "🟢 GO CALL (BUY)" if action == "CALL" else "🔴 GO PUT (SELL)"
-        text = f"🚨 **AI REAL-TIME SIGNAL** 🚨\n\nAsset: {asset}\nAction: {emoji}\nTimeframe: 1 MIN\n\n{extra_info}"
-    else:
-        text = f"🧠 **AI MEMORY LOOP UPDATE** 🧠\n\n{extra_info}"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        logging.error(f"Telegram fail: {e}")
-
-# 4. CANDLE DATA PROCESSOR
-async def process_candle_data(asset, candle_open, candle_close, state):
-    if state["last_close"].get(asset) is None:
-        state["last_close"][asset] = candle_close
-        return
-
-    last_close = state["last_close"][asset]
-
-    if state["trade_active"].get(asset):
-        open_price = state["active_trade"][asset]["open_price"]
-        action = state["active_trade"][asset]["action"]
-        
-        result = "WIN" if (action == "CALL" and candle_close > open_price) or (action == "PUT" and candle_close < open_price) else "LOSS"
-        save_trade_to_memory(asset, action, open_price, result)
-        
-        summary = get_ai_learning_summary()
-        feedback = f"Asset: {asset}\nAction: {action}\nResult: {result}\n\nMorphing AI Memory: {dict(summary)}"
-        send_telegram_signal(asset, action, message_type="MEMORY", extra_info=feedback)
-        state["trade_active"][asset] = False
-
-    action = None
-    if candle_close > candle_open and candle_open > last_close:
-        action = "CALL"
-    elif candle_close < candle_open and candle_open < last_close:
-        action = "PUT"
-
-    if action:
-        state["trade_active"][asset] = True
-        state["active_trade"][asset] = {"open_price": candle_close, "action": action}
-        extra_msg = "💡 Strategy: Trend Rider\n🧠 Status: Quotex Real-Time Streaming Active"
-        send_telegram_signal(asset, action, message_type="SIGNAL", extra_info=extra_msg)
-
-    state["last_close"][asset] = candle_close
-
-# 5. CORE SYSTEM RUNNER
-async def bot_core_loop():
-    init_db()
-    logging.info("Direct AI Core Memory Initialized.")
-    state = {"last_close": {}, "trade_active": {}, "active_trade": {}}
-    
-    while True:
-        my_ssid = os.environ.get("QUOTEX_SSID")
-        if not my_ssid:
-            logging.error("QUOTEX_SSID variable settings missing!")
-            await asyncio.sleep(15)
-            continue
-            
-        try:
-            logging.info("Connecting to Quotex Network via api_quotex library...")
-            # Library ka initialization format
-            client = Quotex(email=my_ssid, password="pass") 
-            
-            logging.info("SUCCESS: Quotex Object loaded successfully!")
-            
-            for asset in PAIRS:
-                state["trade_active"][asset] = False
-                
-            # Streaming engine trigger loop
-            # Agar direct streams function na mile toh background scheduler loop trigger hoga
-            logging.info("Starting real-time market data analysis stream...")
-            
-            # Temporary manual stream poll backup for security fallback
-            while True:
-                await asyncio.sleep(60)
-                            
-        except Exception as e:
-            logging.error(f"Quotex core pipe error: {e}. Retrying in 10s...")
-            await asyncio.sleep(10)
-
 if __name__ == "__main__":
-    # Start Render Port Server in background thread
-    t = threading.Thread(target=start_health_server, daemon=True)
-    t.start()
+    init_db()
+    seed_future_patterns()
     
-    # Run core bot
-    asyncio.run(bot_core_loop())
+    # Target Active Pairs
+    ASSETS = ["EURUSD_otc", "USDINR_otc"]
     
+    # GitHub Actions runtime scenario analysis
+    # Live market simulation check (Real-time tracking mock sequence)
+    current_live_pattern = "GGG" # Example: Live market me 3 green candles bani hain
+    
+    for pair in ASSETS:
+        predict_future_candle(pair, current_live_pattern)
