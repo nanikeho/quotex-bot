@@ -1,4 +1,4 @@
+quotexapi
 pandas
 numpy
-flask
-requests
+ta
