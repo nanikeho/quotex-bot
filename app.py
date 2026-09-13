@@ -14,7 +14,7 @@ from selenium.webdriver.common.by import By
 logging.basicConfig(format='%(asctime)s - KALINET STRIKES - %(levelname)s: %(message)s', level=logging.INFO)
 
 # Telegram Bot Token (set in Render Dashboard as ENV VAR)
-TOKEN = os.getenv("TOKEN")("8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
+TOKEN = os.getenv("TOKEN")
 
 # Global driver for attacks (cloud-based Chrome)
 driver = None
