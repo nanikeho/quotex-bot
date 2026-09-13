@@ -110,24 +110,7 @@ if __name__ == "__main__":
 import threading
 import os
 
-app_web = Flask(__name__)
-
-@app_web.route('/')
-def home():
-    return "Bot is running successfully!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app_web.run(host="0.0.0.0", port=port)
-
-if __name__ == "__main__":
-    # Flask server ko background mein chalate hain taaki bot ke sath port bhi bind ho jaye
-    t = threading.Thread(target=run_flask)
-    t.start()
-    from flask import Flask
-import threading
-import os
-
+# Dummy Flask app taaki Render ka port check pass ho jaye
 app_web = Flask(__name__)
 
 @app_web.route('/')
@@ -136,9 +119,14 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    app_web.run(host="0.0.0.0", port=port)
+    app_web.run(host="0.0.0.0", port=port, use_reloader=False)
 
 if __name__ == "__main__":
-    # Flask server ko alag thread par chalate hain taaki port bind ho jaye aur error na aaye
-    t = threading.Thread(target=run_flask)
-    t.start()
+    # Flask ko background thread mein start karte hain
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # Yahan aapka baaki bot / updater start hone ka code aayega
+    # Jaise: updater.start_polling() aur updater.idle()
+    
