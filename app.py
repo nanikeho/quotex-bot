@@ -106,4 +106,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+    from flask import Flask
+import threading
+import os
+
+app_web = Flask(__name__)
+
+@app_web.route('/')
+def home():
+    return "Bot is running successfully!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app_web.run(host="0.0.0.0", port=port)
+
+if __name__ == "__main__":
+    # Flask server ko background mein chalate hain taaki bot ke sath port bhi bind ho jaye
+    t = threading.Thread(target=run_flask)
+    t.start()
     
