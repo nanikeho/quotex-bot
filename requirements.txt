@@ -1,4 +1,5 @@
-quotexapi
-pandas
-numpy
-ta
+python-telegram-bot==13.15
+selenium==4.20.0
+webdriver-manager==4.0.1
+Flask==2.3.3
+requests==2.31.0
