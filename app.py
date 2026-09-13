@@ -129,4 +129,30 @@ if __name__ == "__main__":
 
     # Yahan aapka baaki bot / updater start hone ka code aayega
     # Jaise: updater.start_polling() aur updater.idle()
-    
+    from flask import Flask
+import threading
+import os
+
+# 1. Flask Web App (Yeh Render ke port check ko turant pass kar dega)
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is active and running!"
+
+# 2. Aapka Telegram Bot aur Scheduler chalane ka function
+def start_bot():
+    # Yahan aapka purana bot, updater aur scheduler ka sara code rahega
+    # Jaise: updater.start_polling() etc.
+    pass
+
+if __name__ == "__main__":
+    # Pehle Telegram Bot ko background thread mein chalu karte hain
+    bot_thread = threading.Thread(target=start_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+
+    # Phir Flask server ko main thread par chalate hain taaki port bind ho jaye
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
