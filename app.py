@@ -10,12 +10,11 @@ from flask import Flask
 from quotexpy import Quotex
 import undetected_chromedriver as uc
 
-# --- FIX FOR QUOTEXPY CHROME CRASH ON RENDER (MONKEY PATCH) ---
+# --- FIX FOR QUOTEXPY CHROME CRASH ON RENDER ---
 os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
 os.environ["CHROME_EXECUTABLE_PATH"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
 os.environ["CHROME_BINARY_LOCATION"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
 
-# Force undetected_chromedriver to use server-safe flags
 original_init = uc.Chrome.__init__
 def patched_init(self, *args, **kwargs):
     options = kwargs.get('options')
@@ -28,7 +27,6 @@ def patched_init(self, *args, **kwargs):
     original_init(self, *args, **kwargs)
 
 uc.Chrome.__init__ = patched_init
-# --------------------------------------------------------------
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
@@ -36,7 +34,6 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "5016643207")
 QUOTEX_EMAIL = os.environ.get("QUOTEX_EMAIL", "nanikeho@gmail.com")
 QUOTEX_PASS = os.environ.get("QUOTEX_PASS", "78907890@Ho")
 
-# Multiple OTC Pairs to scan
 OTC_PAIRS = [
     "EURUSD_otc", "GBPUSD_otc", "USDJPY_otc", 
     "AUDUSD_otc", "USDCAD_otc", "NZDUSD_otc",
@@ -48,15 +45,22 @@ class MultiPairChartBot:
         self.client = Quotex(email=QUOTEX_EMAIL, password=QUOTEX_PASS)
 
     async def connect_to_quotex(self):
-        print("Connecting to Quotex API...")
+        print("Connecting to Quotex API (Max wait 60 seconds)...")
         try:
-            check, reason = await self.client.connect()
+            # 60 second ka timeout lagaya hai taaki bot hamesha ke liye hang na ho
+            check, reason = await asyncio.wait_for(self.client.connect(), timeout=60.0)
             if check:
-                print("Successfully connected to Quotex!")
+                print("✅ Successfully connected to Quotex!")
+                return True
             else:
-                print(f"Connection failed: {reason}")
+                print(f"❌ Connection failed: {reason}")
+                return False
+        except asyncio.TimeoutError:
+            print("❌ API Connection Timeout: Chrome background mein hang ho gaya hai (Render memory issue ho sakta hai).")
+            return False
         except Exception as e:
-            print(f"API Connection Error: {e}")
+            print(f"❌ API Connection Error: {e}")
+            return False
             
     def generate_and_save_chart(self, df, pair, direction):
         plt.figure(figsize=(10, 5))
@@ -99,7 +103,7 @@ class MultiPairChartBot:
             with open(image_path, 'rb') as photo:
                 payload = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption, "parse_mode": "HTML"}
                 requests.post(url, data=payload, files={"photo": photo})
-                print(f"[{time.strftime('%H:%M:%S')}] Chart Signal Sent for {pair}")
+                print(f"[{time.strftime('%H:%M:%S')}] 🚀 Chart Signal Sent for {pair}")
         except Exception as e:
             print(f"Telegram Image Error: {e}")
         finally:
@@ -108,8 +112,12 @@ class MultiPairChartBot:
 
     async def fetch_and_analyze(self, pair):
         try:
+            # Print statement add kiya hai taaki logs mein progress dikhe
+            print(f"🔍 Scanning real-time data for {pair}...")
+            
             candles = await self.client.get_candles(pair, 60, 50, time.time())
             if not candles:
+                print(f"⚠️ No data received for {pair}")
                 return
                 
             df = pd.DataFrame(candles)
@@ -128,33 +136,42 @@ class MultiPairChartBot:
             current = df.iloc[-1]
             
             if (current['ema_9'] > current['ema_21']) and (current['close'] > current['bb_upper']) and (50 < current['rsi'] < 70):
+                print(f"🟢 CALL Setup found for {pair}. Generating chart...")
                 img_path = self.generate_and_save_chart(df.tail(30), pair, "CALL")
                 self.send_telegram_alert(pair, "CALL", current['close'], current['rsi'], img_path)
                 await asyncio.sleep(60) 
                 
             elif (current['ema_9'] < current['ema_21']) and (current['close'] < current['bb_lower']) and (30 < current['rsi'] < 50):
+                print(f"🔴 PUT Setup found for {pair}. Generating chart...")
                 img_path = self.generate_and_save_chart(df.tail(30), pair, "PUT")
                 self.send_telegram_alert(pair, "PUT", current['close'], current['rsi'], img_path)
                 await asyncio.sleep(60)
         except Exception as e:
-            pass
+            print(f"Error analyzing {pair}: {e}")
 
     async def run(self):
-        await self.connect_to_quotex()
-        print("Multi-Pair Scanner & Charting Engine Started!")
+        connected = await self.connect_to_quotex()
+        
+        # Agar connect nahi hua toh bot aage nahi badhega
+        if not connected:
+            print("Bot stopped due to connection failure. Please check logs.")
+            return
+
+        print("Multi-Pair Scanner & Charting Engine Started Successfully!")
         
         try:
             requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
                 data={"chat_id": TELEGRAM_CHAT_ID, "text": "🟢 <b>Quotex AI Engine Online</b>\nScanning pairs successfully connected.", "parse_mode": "HTML"}
             )
-        except Exception as e:
+        except Exception:
             pass
 
         while True:
             for pair in OTC_PAIRS:
                 await self.fetch_and_analyze(pair)
                 await asyncio.sleep(2)
+            print("--- Completed one full cycle. Waiting 10 seconds before next scan ---")
             await asyncio.sleep(10)
 
 # --- FLASK SERVER FOR RENDER ---
