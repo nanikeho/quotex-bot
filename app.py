@@ -10,12 +10,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 
 # --- CONFIGURATION ---
-# Apne Telegram bot ka token aur channel ID yahan daalein
+# Apne Telegram bot ka token aur chat/channel ID yahan daalein
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "5016643207")
 ASSET_NAME = "EUR/USD OTC"
 
-# Quotex price element class name (Agar scraping kaam na kare toh isko inspect element karke actual class se update karein)
+# Quotex price element class name 
 PRICE_CSS_SELECTOR = ".chart-current-price-class" 
 
 class QuotexTelegramBot:
@@ -39,7 +39,7 @@ class QuotexTelegramBot:
         # Render par Chrome binary ki specific location
         options.binary_location = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
         
-        # Selenium 4.10+ in-built manager use karega (no webdriver-manager needed)
+        # Selenium 4.10+ in-built manager use karega
         driver = webdriver.Chrome(options=options)
         
         # Domain name updated to avoid net::ERR_NAME_NOT_RESOLVED
@@ -126,6 +126,20 @@ class QuotexTelegramBot:
 
     def run(self):
         print("Bot Started. Scraping ticks from Quotex...")
+        
+        # --- STARTUP TEST MESSAGE ---
+        try:
+            test_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            requests.post(test_url, data={
+                "chat_id": TELEGRAM_CHAT_ID, 
+                "text": "🟢 <b>Quotex Math Bot is LIVE!</b>\nScanning the market 24/7 for high accuracy setups...",
+                "parse_mode": "HTML"
+            })
+            print("Startup message sent to Telegram.")
+        except Exception as e:
+            print(f"Failed to send startup message: {e}")
+        # ----------------------------
+
         while True:
             price = self.get_realtime_price()
             if price:
