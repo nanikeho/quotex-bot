@@ -8,5 +8,5 @@ requests==2.31.0
 gunicorn==21.2.0
 PySocks
 stem
-pandas==2.2.0
+pandas
 pandas-ta
