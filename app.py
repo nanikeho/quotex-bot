@@ -1,74 +1,131 @@
-import os
 import time
-import threading
-from flask import Flask
-from telegram.ext import Updater, CommandHandler, CallbackContext
-from telegram import Update
+import requests
+import pandas as pd
+import pandas_ta as ta
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
-# ==== LOAD MODULES ====
-from bomber import launch_bomb
-from self_destruct import self_destruct_in
+# --- CONFIGURATION ---
+TELEGRAM_TOKEN = "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU"
+TELEGRAM_CHAT_ID = "5016643207"
+ASSET_NAME = "EUR/USD OTC"
 
-app = Flask(__name__)
-TOKEN = os.getenv("TOKEN")
+# Quotex price element class name (Inspect element karke update karna pad sakta hai)
+PRICE_CSS_SELECTOR = ".price-text-class" # Update this with actual Quotex price class
 
-if not TOKEN:
-    raise ValueError("❌ Set TOKEN in Render!")
+class QuotexTelegramBot:
+    def __init__(self):
+        self.ticks = []
+        self.candles = pd.DataFrame(columns=['open', 'high', 'low', 'close'])
+        self.last_candle_minute = int(time.time() // 60)
+        self.driver = self.init_browser()
 
-start_time = time.time()
+    def init_browser(self):
+        print("Starting Headless Browser...")
+        options = Options()
+        options.add_argument("--headless")  # Render par chalane ke liye zaroori hai
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get("https://qxbroker.com/en/trade")
+        print("Browser Started. Please ensure account is logged in via cookies if needed.")
+        return driver
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("""
-💣 <b>WHATSAPP NUKER v9.666</b> 💣
-Only ONE command works:
-→ <code>/bomb 91XXXXXXXXXX</code>
+    def send_telegram_signal(self, direction, price, ema9, ema21, rsi):
+        emoji = "🟢 CALL (UP)" if direction == "CALL" else "🔴 PUT (DOWN)"
+        message = (
+            f"⚡ <b>QUOTEX 1-MIN SIGNAL</b> ⚡\n\n"
+            f"📊 <b>Asset:</b> {ASSET_NAME}\n"
+            f"🎯 <b>Signal:</b> {emoji}\n"
+            f"💲 <b>Entry Price:</b> {price}\n"
+            f"⏳ <b>Expiry:</b> 1 Minute\n\n"
+            f"📈 <b>RSI:</b> {round(rsi, 2)}\n"
+            f"📉 <b>EMA Cross:</b> 9 EMA ({round(ema9, 5)}) | 21 EMA ({round(ema21, 5)})\n"
+            f"🛡️ <b>Strategy:</b> EMA Cross + BB Breakout + RSI"
+        )
+        
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
+        try:
+            requests.post(url, data=payload)
+            print(f"Signal Sent: {direction} at {price}")
+        except Exception as e:
+            print(f"Telegram Error: {e}")
 
-After attack:
-1. Server self-destructs in 60s
-2. Bot deletes itself
-3. You vanish
+    def get_realtime_price(self):
+        """Scrape price directly from HTML for 100% accuracy (No OCR needed)"""
+        try:
+            # Note: Quotex UI update hone par CSS selector change karna padta hai
+            price_element = self.driver.find_element(By.CSS_SELECTOR, ".chart-current-price-class") 
+            price_text = price_element.text.replace(',', '')
+            return float(price_text)
+        except Exception:
+            # Agar element na mile toh retry logic yahan add karein
+            return None
 
-⚠️ Last chance to turn back.
-    """, parse_mode='HTML')
+    def build_candle_and_analyze(self):
+        current_minute = int(time.time() // 60)
+        
+        # 1-Minute Candle Close Logic
+        if current_minute > self.last_candle_minute and len(self.ticks) > 0:
+            open_p = self.ticks[0]
+            high_p = max(self.ticks)
+            low_p = min(self.ticks)
+            close_p = self.ticks[-1]
+            
+            new_candle = pd.DataFrame([{
+                'open': open_p, 'high': high_p, 'low': low_p, 'close': close_p
+            }])
+            
+            self.candles = pd.concat([self.candles, new_candle], ignore_index=True)
+            self.ticks = []  # Reset ticks for next minute
+            self.last_candle_minute = current_minute
+            
+            # Keep only last 50 candles for memory efficiency
+            if len(self.candles) > 50:
+                self.candles = self.candles.iloc[-50:]
+                
+            self.analyze_strategy()
 
-def handle_bomb(update: Update, context: CallbackContext):
-    try:
-        num = context.args[0]
-        if not num.startswith("91") or len(num) != 12:
-            update.message.reply_text("❌ Use: <code>91XXXXXXXXXX</code>", parse_mode='HTML')
-            return
+    def analyze_strategy(self):
+        if len(self.candles) < 22:
+            return # Indicators ke liye enough data nahi hai
 
-        # Launch bomb
-        threading.Thread(target=launch_bomb, args=(num, update)).start()
+        df = self.candles.copy()
+        
+        # Calculate Indicators using pandas_ta
+        df['ema_9'] = ta.ema(df['close'], length=9)
+        df['ema_21'] = ta.ema(df['close'], length=21)
+        df['rsi'] = ta.rsi(df['close'], length=14)
+        
+        bbands = ta.bbands(df['close'], length=20, std=2)
+        df['bb_upper'] = bbands['BBL_20_2.0']
+        df['bb_lower'] = bbands['BBL_20_2.0']
 
-        # Start self-destruct
-        threading.Thread(target=self_destruct_in, args=(60,)).start()
+        current = df.iloc[-1]
+        
+        # Bullish Logic: EMA 9 > 21 + Price Breakout BB Upper + RSI 50-70
+        if (current['ema_9'] > current['ema_21']) and (current['close'] > current['bb_upper']) and (50 < current['rsi'] < 70):
+            self.send_telegram_signal("CALL", current['close'], current['ema_9'], current['ema_21'], current['rsi'])
+            
+        # Bearish Logic: EMA 9 < 21 + Price Breakdown BB Lower + RSI 30-50
+        elif (current['ema_9'] < current['ema_21']) and (current['close'] < current['bb_lower']) and (30 < current['rsi'] < 50):
+            self.send_telegram_signal("PUT", current['close'], current['ema_9'], current['ema_21'], current['rsi'])
 
-        # Delete Telegram bot after 65s
-        threading.Timer(65, lambda: requests.post(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")).start()
-
-    except Exception as e:
-        update.message.reply_text(f"💥 Error: {e}")
-
-@app.route('/')
-def home():
-    return "<h1>💀 WhatsApp Nuker: ACTIVE</h1><p>Status: <b>ONE SHOT. NO TRACE.</b></p>"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    def run(self):
+        print("Bot Started. Scraping ticks...")
+        while True:
+            price = self.get_realtime_price()
+            if price:
+                self.ticks.append(price)
+            
+            self.build_candle_and_analyze()
+            time.sleep(0.5) # Poll price every 0.5 seconds
 
 if __name__ == "__main__":
-    # Start Flask
-    threading.Thread(target=run_flask, daemon=True).start()
-
-    # Start Telegram bot
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("bomb", handle_bomb))
-
-    updater.start_polling(drop_pending_updates=True)
-    print("🚀 WhatsApp Nuker v9.666 — ONLINE. ONE TARGET. ONE STRIKE.")
-    updater.idle()
+    bot = QuotexTelegramBot()
+    bot.run()
