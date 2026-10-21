@@ -27,15 +27,19 @@ class QuotexTelegramBot:
 
     def init_browser(self):
         print("Starting Headless Browser...")
+        
+        # Chrome ko system PATH mein add karna taaki webdriver_manager usko detect kar sake (Error Fix)
+        os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
+        
         options = Options()
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         
-        # Render par Chrome binary ki specific location jo humne script se install ki thi
+        # Render par Chrome binary ki specific location jo script se install hui thi
         options.binary_location = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
         
-        # WebDriver manager Chrome setup
+        # WebDriver manager setup
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.get("https://qxbroker.com/en/trade")
         print("Browser Started successfully!")
@@ -138,4 +142,4 @@ class QuotexTelegramBot:
 if __name__ == "__main__":
     bot = QuotexTelegramBot()
     bot.run()
-        
+                                                         
