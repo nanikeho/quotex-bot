@@ -1,3 +1,4 @@
+import os
 import time
 import requests
 import pandas as pd
@@ -9,12 +10,13 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
 # --- CONFIGURATION ---
-TELEGRAM_TOKEN = "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU"
-TELEGRAM_CHAT_ID = "5016643207"
+# Apne Telegram bot ka token aur channel ID yahan daalein
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "5016643207")
 ASSET_NAME = "EUR/USD OTC"
 
-# Quotex price element class name (Inspect element karke update karna pad sakta hai)
-PRICE_CSS_SELECTOR = ".price-text-class" # Update this with actual Quotex price class
+# Quotex price element class name (Inspect element karke actual class name se update karein agar zaroorat ho)
+PRICE_CSS_SELECTOR = ".chart-current-price-class" 
 
 class QuotexTelegramBot:
     def __init__(self):
@@ -26,13 +28,17 @@ class QuotexTelegramBot:
     def init_browser(self):
         print("Starting Headless Browser...")
         options = Options()
-        options.add_argument("--headless")  # Render par chalane ke liye zaroori hai
+        options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         
+        # Render par Chrome binary ki specific location jo humne script se install ki thi
+        options.binary_location = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
+        
+        # WebDriver manager Chrome setup
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.get("https://qxbroker.com/en/trade")
-        print("Browser Started. Please ensure account is logged in via cookies if needed.")
+        print("Browser Started successfully!")
         return driver
 
     def send_telegram_signal(self, direction, price, ema9, ema21, rsi):
@@ -51,20 +57,22 @@ class QuotexTelegramBot:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
         try:
-            requests.post(url, data=payload)
-            print(f"Signal Sent: {direction} at {price}")
+            response = requests.post(url, data=payload)
+            if response.status_code == 200:
+                print(f"[{time.strftime('%H:%M:%S')}] Signal Sent: {direction} at {price}")
+            else:
+                print(f"Telegram API Error: {response.text}")
         except Exception as e:
-            print(f"Telegram Error: {e}")
+            print(f"Telegram Request Error: {e}")
 
     def get_realtime_price(self):
-        """Scrape price directly from HTML for 100% accuracy (No OCR needed)"""
+        """Scrape price directly from HTML for 100% accuracy"""
         try:
-            # Note: Quotex UI update hone par CSS selector change karna padta hai
-            price_element = self.driver.find_element(By.CSS_SELECTOR, ".chart-current-price-class") 
+            # Agar error aaye toh .chart-current-price-class ko actual Quotex class se replace karein
+            price_element = self.driver.find_element(By.CSS_SELECTOR, PRICE_CSS_SELECTOR) 
             price_text = price_element.text.replace(',', '')
             return float(price_text)
         except Exception:
-            # Agar element na mile toh retry logic yahan add karein
             return None
 
     def build_candle_and_analyze(self):
@@ -81,6 +89,7 @@ class QuotexTelegramBot:
                 'open': open_p, 'high': high_p, 'low': low_p, 'close': close_p
             }])
             
+            # DataFrame update
             self.candles = pd.concat([self.candles, new_candle], ignore_index=True)
             self.ticks = []  # Reset ticks for next minute
             self.last_candle_minute = current_minute
@@ -93,11 +102,11 @@ class QuotexTelegramBot:
 
     def analyze_strategy(self):
         if len(self.candles) < 22:
-            return # Indicators ke liye enough data nahi hai
+            return # Indicators calculate karne ke liye minimum data chahiye
 
         df = self.candles.copy()
         
-        # Calculate Indicators using pandas_ta
+        # Calculate Indicators
         df['ema_9'] = ta.ema(df['close'], length=9)
         df['ema_21'] = ta.ema(df['close'], length=21)
         df['rsi'] = ta.rsi(df['close'], length=14)
@@ -117,15 +126,16 @@ class QuotexTelegramBot:
             self.send_telegram_signal("PUT", current['close'], current['ema_9'], current['ema_21'], current['rsi'])
 
     def run(self):
-        print("Bot Started. Scraping ticks...")
+        print("Bot Started. Scraping ticks from Quotex...")
         while True:
             price = self.get_realtime_price()
             if price:
                 self.ticks.append(price)
             
             self.build_candle_and_analyze()
-            time.sleep(0.5) # Poll price every 0.5 seconds
+            time.sleep(0.5) # Poll price every half second
 
 if __name__ == "__main__":
     bot = QuotexTelegramBot()
     bot.run()
+        
