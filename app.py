@@ -6,7 +6,7 @@ import pandas as pd
 import pandas_ta as ta
 import matplotlib.pyplot as plt
 from flask import Flask
-from quotexapi.stable_api import Quotex  # Unofficial Quotex API
+from quotexpy import Quotex  # Unofficial Quotex API
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
