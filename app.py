@@ -7,12 +7,28 @@ import pandas as pd
 import pandas_ta as ta
 import matplotlib.pyplot as plt
 from flask import Flask
-from quotexpy import Quotex  # Unofficial Quotex API
+from quotexpy import Quotex
+import undetected_chromedriver as uc
 
-# --- FIX FOR QUOTEXPY CHROME DETECTION ON RENDER ---
+# --- FIX FOR QUOTEXPY CHROME CRASH ON RENDER (MONKEY PATCH) ---
 os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
 os.environ["CHROME_EXECUTABLE_PATH"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
 os.environ["CHROME_BINARY_LOCATION"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
+
+# Force undetected_chromedriver to use server-safe flags
+original_init = uc.Chrome.__init__
+def patched_init(self, *args, **kwargs):
+    options = kwargs.get('options')
+    if not options:
+        options = uc.ChromeOptions()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--headless=new')
+    kwargs['options'] = options
+    original_init(self, *args, **kwargs)
+
+uc.Chrome.__init__ = patched_init
+# --------------------------------------------------------------
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
@@ -33,14 +49,16 @@ class MultiPairChartBot:
 
     async def connect_to_quotex(self):
         print("Connecting to Quotex API...")
-        check, reason = await self.client.connect()
-        if check:
-            print("Successfully connected to Quotex!")
-        else:
-            print(f"Connection failed: {reason}")
+        try:
+            check, reason = await self.client.connect()
+            if check:
+                print("Successfully connected to Quotex!")
+            else:
+                print(f"Connection failed: {reason}")
+        except Exception as e:
+            print(f"API Connection Error: {e}")
             
     def generate_and_save_chart(self, df, pair, direction):
-        """Matplotlib ka use karke dark theme real-time chart draw karna"""
         plt.figure(figsize=(10, 5))
         plt.style.use('dark_background')
         
@@ -89,35 +107,37 @@ class MultiPairChartBot:
                 os.remove(image_path)
 
     async def fetch_and_analyze(self, pair):
-        candles = await self.client.get_candles(pair, 60, 50, time.time())
-        
-        if not candles:
-            return
+        try:
+            candles = await self.client.get_candles(pair, 60, 50, time.time())
+            if not candles:
+                return
+                
+            df = pd.DataFrame(candles)
+            if 'time' in df.columns:
+                df = df.rename(columns={'time': 'datetime'})
+            df['close'] = df['close'].astype(float)
             
-        df = pd.DataFrame(candles)
-        if 'time' in df.columns:
-            df = df.rename(columns={'time': 'datetime'})
-        df['close'] = df['close'].astype(float)
-        
-        df['ema_9'] = ta.ema(df['close'], length=9)
-        df['ema_21'] = ta.ema(df['close'], length=21)
-        df['rsi'] = ta.rsi(df['close'], length=14)
-        
-        bbands = ta.bbands(df['close'], length=20, std=2)
-        df['bb_upper'] = bbands['BBL_20_2.0']
-        df['bb_lower'] = bbands['BBL_20_2.0']
+            df['ema_9'] = ta.ema(df['close'], length=9)
+            df['ema_21'] = ta.ema(df['close'], length=21)
+            df['rsi'] = ta.rsi(df['close'], length=14)
+            
+            bbands = ta.bbands(df['close'], length=20, std=2)
+            df['bb_upper'] = bbands['BBL_20_2.0']
+            df['bb_lower'] = bbands['BBL_20_2.0']
 
-        current = df.iloc[-1]
-        
-        if (current['ema_9'] > current['ema_21']) and (current['close'] > current['bb_upper']) and (50 < current['rsi'] < 70):
-            img_path = self.generate_and_save_chart(df.tail(30), pair, "CALL")
-            self.send_telegram_alert(pair, "CALL", current['close'], current['rsi'], img_path)
-            await asyncio.sleep(60) 
+            current = df.iloc[-1]
             
-        elif (current['ema_9'] < current['ema_21']) and (current['close'] < current['bb_lower']) and (30 < current['rsi'] < 50):
-            img_path = self.generate_and_save_chart(df.tail(30), pair, "PUT")
-            self.send_telegram_alert(pair, "PUT", current['close'], current['rsi'], img_path)
-            await asyncio.sleep(60) 
+            if (current['ema_9'] > current['ema_21']) and (current['close'] > current['bb_upper']) and (50 < current['rsi'] < 70):
+                img_path = self.generate_and_save_chart(df.tail(30), pair, "CALL")
+                self.send_telegram_alert(pair, "CALL", current['close'], current['rsi'], img_path)
+                await asyncio.sleep(60) 
+                
+            elif (current['ema_9'] < current['ema_21']) and (current['close'] < current['bb_lower']) and (30 < current['rsi'] < 50):
+                img_path = self.generate_and_save_chart(df.tail(30), pair, "PUT")
+                self.send_telegram_alert(pair, "PUT", current['close'], current['rsi'], img_path)
+                await asyncio.sleep(60)
+        except Exception as e:
+            pass
 
     async def run(self):
         await self.connect_to_quotex()
@@ -126,20 +146,15 @@ class MultiPairChartBot:
         try:
             requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
-                data={"chat_id": TELEGRAM_CHAT_ID, "text": "🟢 <b>Quotex AI Engine Online</b>\nScanning pairs...", "parse_mode": "HTML"}
+                data={"chat_id": TELEGRAM_CHAT_ID, "text": "🟢 <b>Quotex AI Engine Online</b>\nScanning pairs successfully connected.", "parse_mode": "HTML"}
             )
         except Exception as e:
             pass
 
         while True:
             for pair in OTC_PAIRS:
-                try:
-                    await self.fetch_and_analyze(pair)
-                except Exception as e:
-                    print(f"Error on {pair}: {e}")
-                
+                await self.fetch_and_analyze(pair)
                 await asyncio.sleep(2)
-            
             await asyncio.sleep(10)
 
 # --- FLASK SERVER FOR RENDER ---
@@ -159,4 +174,4 @@ if __name__ == "__main__":
     
     bot = MultiPairChartBot()
     asyncio.run(bot.run())
-        
+    
