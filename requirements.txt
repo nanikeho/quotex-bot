@@ -9,4 +9,4 @@ gunicorn==21.2.0
 PySocks
 stem
 pandas==2.2.0
-pandas-ta==0.3.14
+pandas-ta
