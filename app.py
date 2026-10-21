@@ -33,6 +33,7 @@ class MultiPairChartBot:
             print("Successfully connected to Quotex!")
         else:
             print(f"Connection failed: {reason}")
+            # Agar login fail hota hai, toh yahan clear error aayega logs mein
 
     def generate_and_save_chart(self, df, pair, direction):
         """Matplotlib ka use karke dark theme real-time chart draw karna"""
@@ -161,10 +162,11 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    # Render port timeout bypass
-    server_thread = threading.Thread(target=run_flask)
+    # Render port timeout bypass - YAHAN daemon=True ADD KIYA GAYA HAI
+    server_thread = threading.Thread(target=run_flask, daemon=True)
     server_thread.start()
     
     # Start the trading engine
     bot = MultiPairChartBot()
     bot.run()
+            
