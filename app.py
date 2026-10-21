@@ -42,12 +42,12 @@ OTC_PAIRS = [
 
 class MultiPairChartBot:
     def __init__(self):
-        self.client = Quotex(email=QUOTEX_EMAIL, password=QUOTEX_PASS)
+        # Yahan host="quotex.com" add kiya gaya hai taaki ERR_NAME_NOT_RESOLVED fix ho jaye
+        self.client = Quotex(email=QUOTEX_EMAIL, password=QUOTEX_PASS, host="quotex.com")
 
     async def connect_to_quotex(self):
         print("Connecting to Quotex API (Max wait 60 seconds)...")
         try:
-            # 60 second ka timeout lagaya hai taaki bot hamesha ke liye hang na ho
             check, reason = await asyncio.wait_for(self.client.connect(), timeout=60.0)
             if check:
                 print("✅ Successfully connected to Quotex!")
@@ -56,7 +56,7 @@ class MultiPairChartBot:
                 print(f"❌ Connection failed: {reason}")
                 return False
         except asyncio.TimeoutError:
-            print("❌ API Connection Timeout: Chrome background mein hang ho gaya hai (Render memory issue ho sakta hai).")
+            print("❌ API Connection Timeout: Chrome background mein hang ho gaya hai.")
             return False
         except Exception as e:
             print(f"❌ API Connection Error: {e}")
@@ -112,7 +112,6 @@ class MultiPairChartBot:
 
     async def fetch_and_analyze(self, pair):
         try:
-            # Print statement add kiya hai taaki logs mein progress dikhe
             print(f"🔍 Scanning real-time data for {pair}...")
             
             candles = await self.client.get_candles(pair, 60, 50, time.time())
@@ -152,7 +151,6 @@ class MultiPairChartBot:
     async def run(self):
         connected = await self.connect_to_quotex()
         
-        # Agar connect nahi hua toh bot aage nahi badhega
         if not connected:
             print("Bot stopped due to connection failure. Please check logs.")
             return
@@ -191,4 +189,4 @@ if __name__ == "__main__":
     
     bot = MultiPairChartBot()
     asyncio.run(bot.run())
-    
+            
