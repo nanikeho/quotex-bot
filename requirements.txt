@@ -12,3 +12,4 @@ pandas-ta
 Flask
 matplotlib
 quotexpy
+undetected-chromedriver
