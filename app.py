@@ -1,8 +1,10 @@
 import os
 import time
+import threading
 import requests
 import pandas as pd
 import pandas_ta as ta
+from flask import Flask
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -13,7 +15,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTi
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "5016643207")
 ASSET_NAME = "EUR/USD OTC"
 
-# Quotex price element class name
+# Quotex price element class name (Agar scraping kaam na kare toh isko inspect element karke actual class se update karein)
 PRICE_CSS_SELECTOR = ".chart-current-price-class" 
 
 class QuotexTelegramBot:
@@ -26,7 +28,7 @@ class QuotexTelegramBot:
     def init_browser(self):
         print("Starting Headless Browser...")
         
-        # Chrome ko system PATH mein add karna
+        # Chrome ko system PATH mein add karna taaki Selenium usko detect kar sake
         os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
         
         options = Options()
@@ -37,10 +39,11 @@ class QuotexTelegramBot:
         # Render par Chrome binary ki specific location
         options.binary_location = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
         
-        # Selenium 4.10+ in-built manager use karega, extra service ki zaroorat nahi hai
+        # Selenium 4.10+ in-built manager use karega (no webdriver-manager needed)
         driver = webdriver.Chrome(options=options)
         
-        driver.get("https://qxbroker.com/en/trade")
+        # Domain name updated to avoid net::ERR_NAME_NOT_RESOLVED
+        driver.get("https://quotex.com/en/trade")
         print("Browser Started successfully!")
         return driver
 
@@ -131,7 +134,23 @@ class QuotexTelegramBot:
             self.build_candle_and_analyze()
             time.sleep(0.5)
 
+# --- DUMMY FLASK SERVER FOR RENDER PORT BINDING ---
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "Quotex Telegram Bot is Running 24/7!"
+
+def run_server():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
 if __name__ == "__main__":
+    # Flask server ko alag thread mein start karna taaki Render port timeout error na de
+    server_thread = threading.Thread(target=run_server)
+    server_thread.start()
+    
+    # Main trading bot ko start karna
     bot = QuotexTelegramBot()
     bot.run()
-            
+    
