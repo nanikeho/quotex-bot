@@ -10,3 +10,5 @@ stem
 pandas
 pandas-ta
 Flask
+matplotlib
+quotexapi
