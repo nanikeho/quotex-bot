@@ -7,7 +7,12 @@ import pandas as pd
 import pandas_ta as ta
 import matplotlib.pyplot as plt
 from flask import Flask
-from quotexpy import Quotex
+from quotexpy import Quotex  # Unofficial Quotex API
+
+# --- FIX FOR QUOTEXPY CHROME DETECTION ON RENDER ---
+os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
+os.environ["CHROME_EXECUTABLE_PATH"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
+os.environ["CHROME_BINARY_LOCATION"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
@@ -28,7 +33,6 @@ class MultiPairChartBot:
 
     async def connect_to_quotex(self):
         print("Connecting to Quotex API...")
-        # 'await' add kiya gaya hai connection ke liye
         check, reason = await self.client.connect()
         if check:
             print("Successfully connected to Quotex!")
@@ -36,6 +40,7 @@ class MultiPairChartBot:
             print(f"Connection failed: {reason}")
             
     def generate_and_save_chart(self, df, pair, direction):
+        """Matplotlib ka use karke dark theme real-time chart draw karna"""
         plt.figure(figsize=(10, 5))
         plt.style.use('dark_background')
         
@@ -84,7 +89,6 @@ class MultiPairChartBot:
                 os.remove(image_path)
 
     async def fetch_and_analyze(self, pair):
-        # API call ko await banaya gaya hai
         candles = await self.client.get_candles(pair, 60, 50, time.time())
         
         if not candles:
@@ -153,7 +157,6 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=run_flask, daemon=True)
     server_thread.start()
     
-    # Async loop start karne ke liye asyncio.run() ka use karein
     bot = MultiPairChartBot()
     asyncio.run(bot.run())
-            
+        
