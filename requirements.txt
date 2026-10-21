@@ -9,3 +9,4 @@ PySocks
 stem
 pandas
 pandas-ta
+Flask
