@@ -10,7 +10,7 @@ from flask import Flask
 from quotexpy import Quotex
 import undetected_chromedriver as uc
 
-# --- FIX FOR QUOTEXPY CHROME CRASH ON RENDER ---
+# --- FIX FOR QUOTEXPY CHROME CRASH ON RENDER (MONKEY PATCH) ---
 os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
 os.environ["CHROME_EXECUTABLE_PATH"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
 os.environ["CHROME_BINARY_LOCATION"] = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
@@ -23,10 +23,15 @@ def patched_init(self, *args, **kwargs):
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--headless=new')
+    # Naye memory optimization flags Render free tier ke liye
+    options.add_argument('--disable-gpu')
+    options.add_argument('--disable-software-rasterizer')
+    options.add_argument('--window-size=1920,1080')
     kwargs['options'] = options
     original_init(self, *args, **kwargs)
 
 uc.Chrome.__init__ = patched_init
+# --------------------------------------------------------------
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTiEPF2JmkjQHNhPVPPU")
@@ -34,6 +39,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "5016643207")
 QUOTEX_EMAIL = os.environ.get("QUOTEX_EMAIL", "nanikeho@gmail.com")
 QUOTEX_PASS = os.environ.get("QUOTEX_PASS", "78907890@Ho")
 
+# Multiple OTC Pairs to scan
 OTC_PAIRS = [
     "EURUSD_otc", "GBPUSD_otc", "USDJPY_otc", 
     "AUDUSD_otc", "USDCAD_otc", "NZDUSD_otc",
@@ -42,7 +48,7 @@ OTC_PAIRS = [
 
 class MultiPairChartBot:
     def __init__(self):
-        # Yahan host="quotex.com" add kiya gaya hai taaki ERR_NAME_NOT_RESOLVED fix ho jaye
+        # host="quotex.com" fix for ERR_NAME_NOT_RESOLVED
         self.client = Quotex(email=QUOTEX_EMAIL, password=QUOTEX_PASS, host="quotex.com")
 
     async def connect_to_quotex(self):
@@ -189,4 +195,4 @@ if __name__ == "__main__":
     
     bot = MultiPairChartBot()
     asyncio.run(bot.run())
-            
+                
