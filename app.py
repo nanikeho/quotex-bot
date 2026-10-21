@@ -6,8 +6,6 @@ import pandas_ta as ta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 
 # --- CONFIGURATION ---
 # Apne Telegram bot ka token aur channel ID yahan daalein
@@ -15,7 +13,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8754386975:AAGpsRdk84bP7dFQTi
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "5016643207")
 ASSET_NAME = "EUR/USD OTC"
 
-# Quotex price element class name (Inspect element karke actual class name se update karein agar zaroorat ho)
+# Quotex price element class name
 PRICE_CSS_SELECTOR = ".chart-current-price-class" 
 
 class QuotexTelegramBot:
@@ -28,7 +26,7 @@ class QuotexTelegramBot:
     def init_browser(self):
         print("Starting Headless Browser...")
         
-        # Chrome ko system PATH mein add karna taaki webdriver_manager usko detect kar sake (Error Fix)
+        # Chrome ko system PATH mein add karna
         os.environ["PATH"] += os.pathsep + "/opt/render/project/free/chrome/opt/google/chrome"
         
         options = Options()
@@ -36,11 +34,12 @@ class QuotexTelegramBot:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         
-        # Render par Chrome binary ki specific location jo script se install hui thi
+        # Render par Chrome binary ki specific location
         options.binary_location = "/opt/render/project/free/chrome/opt/google/chrome/google-chrome"
         
-        # WebDriver manager setup
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        # Selenium 4.10+ in-built manager use karega, extra service ki zaroorat nahi hai
+        driver = webdriver.Chrome(options=options)
+        
         driver.get("https://qxbroker.com/en/trade")
         print("Browser Started successfully!")
         return driver
@@ -72,7 +71,6 @@ class QuotexTelegramBot:
     def get_realtime_price(self):
         """Scrape price directly from HTML for 100% accuracy"""
         try:
-            # Agar error aaye toh .chart-current-price-class ko actual Quotex class se replace karein
             price_element = self.driver.find_element(By.CSS_SELECTOR, PRICE_CSS_SELECTOR) 
             price_text = price_element.text.replace(',', '')
             return float(price_text)
@@ -82,7 +80,6 @@ class QuotexTelegramBot:
     def build_candle_and_analyze(self):
         current_minute = int(time.time() // 60)
         
-        # 1-Minute Candle Close Logic
         if current_minute > self.last_candle_minute and len(self.ticks) > 0:
             open_p = self.ticks[0]
             high_p = max(self.ticks)
@@ -93,12 +90,10 @@ class QuotexTelegramBot:
                 'open': open_p, 'high': high_p, 'low': low_p, 'close': close_p
             }])
             
-            # DataFrame update
             self.candles = pd.concat([self.candles, new_candle], ignore_index=True)
-            self.ticks = []  # Reset ticks for next minute
+            self.ticks = []
             self.last_candle_minute = current_minute
             
-            # Keep only last 50 candles for memory efficiency
             if len(self.candles) > 50:
                 self.candles = self.candles.iloc[-50:]
                 
@@ -106,11 +101,10 @@ class QuotexTelegramBot:
 
     def analyze_strategy(self):
         if len(self.candles) < 22:
-            return # Indicators calculate karne ke liye minimum data chahiye
+            return
 
         df = self.candles.copy()
         
-        # Calculate Indicators
         df['ema_9'] = ta.ema(df['close'], length=9)
         df['ema_21'] = ta.ema(df['close'], length=21)
         df['rsi'] = ta.rsi(df['close'], length=14)
@@ -121,11 +115,9 @@ class QuotexTelegramBot:
 
         current = df.iloc[-1]
         
-        # Bullish Logic: EMA 9 > 21 + Price Breakout BB Upper + RSI 50-70
         if (current['ema_9'] > current['ema_21']) and (current['close'] > current['bb_upper']) and (50 < current['rsi'] < 70):
             self.send_telegram_signal("CALL", current['close'], current['ema_9'], current['ema_21'], current['rsi'])
             
-        # Bearish Logic: EMA 9 < 21 + Price Breakdown BB Lower + RSI 30-50
         elif (current['ema_9'] < current['ema_21']) and (current['close'] < current['bb_lower']) and (30 < current['rsi'] < 50):
             self.send_telegram_signal("PUT", current['close'], current['ema_9'], current['ema_21'], current['rsi'])
 
@@ -137,9 +129,9 @@ class QuotexTelegramBot:
                 self.ticks.append(price)
             
             self.build_candle_and_analyze()
-            time.sleep(0.5) # Poll price every half second
+            time.sleep(0.5)
 
 if __name__ == "__main__":
     bot = QuotexTelegramBot()
     bot.run()
-                                                         
+            
