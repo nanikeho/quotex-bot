@@ -15,3 +15,8 @@ quotexpy
 undetected-chromedriver
 websocket-client
 numpy
+pyTelegramBotAPI
+pandas
+pandas-ta
+flask
+requests
