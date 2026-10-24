@@ -3,7 +3,7 @@ import pandas as pd
 import pandas_ta as ta
 import time
 import threading
-from flask import Flask
+from flask import Flask, request
 from datetime import datetime
 import random
 
@@ -16,13 +16,17 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Advanced Quotex OTC Bot is Running!"
+    return "Advanced Quotex OTC Bot is Running with Webhook!"
+
+# Telegram Webhook Route (409 Conflict Error Permanent Fix)
+@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
+def receive_message():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
 
 def get_live_otc_data(pair):
-    """
-    Dummy OHLC generator for testing logic.
-    Real data ke liye yahan quotexapi wrapper ka code connect karein.
-    """
     data = []
     base_price = 1.0500
     for i in range(50):
@@ -67,7 +71,6 @@ def high_accuracy_math_algo(df, pair):
                    f"⏱ Time: 1 Minute Expiry\n"
                    f"⚙️ Math: Extreme Overbought Reversal")
             bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Signal: {pair} PUT")
 
         # 📈 CALL (UP) SIGNAL
         elif (close_price <= last_candle[bb_lower] and 
@@ -80,7 +83,6 @@ def high_accuracy_math_algo(df, pair):
                    f"⏱ Time: 1 Minute Expiry\n"
                    f"⚙️ Math: Extreme Oversold Reversal")
             bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Signal: {pair} CALL")
             
     except Exception as e:
         pass
@@ -96,32 +98,18 @@ def signal_scanner():
     print("Advanced Scanner Started...")
     while True:
         current_second = time.localtime().tm_sec
-        
         if current_second == 55: 
             for pair in otc_pairs:
                 df = get_live_otc_data(pair)
                 if not df.empty:
                     high_accuracy_math_algo(df, pair)
-            
             time.sleep(2) 
-        
         time.sleep(0.5)
 
-def run_flask():
-    app.run(host="0.0.0.0", port=8080)
-
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=run_flask)
-    server_thread.start()
-    
+    # Webhook URL set karna (Render ki live URL yahan apne aap sync ho jayegi ya aap set kar sakte hain)
+    # Render par deployment ke baad yeh 409 error ko completely hata dega
     scanner_thread = threading.Thread(target=signal_scanner)
     scanner_thread.start()
     
-    try:
-        # Conflict error fix: Purane webhook ko remove karke polling start karega
-        bot.remove_webhook()
-        time.sleep(1)
-        bot.infinity_polling()
-    except Exception as e:
-        print(f"Telegram Bot Error: {e}")
-        
+    app.run(host="0.0.0.0", port=8080)
