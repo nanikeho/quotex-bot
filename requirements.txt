@@ -13,3 +13,5 @@ Flask
 matplotlib
 quotexpy
 undetected-chromedriver
+websocket-client
+numpy
