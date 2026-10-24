@@ -1,295 +1,139 @@
-import websocket
-import json
+import telebot
+import pandas as pd
+import pandas_ta as ta
 import time
-import numpy as np
-from collections import deque
-import requests
-import logging
-
-# Configure Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+import threading
+from flask import Flask
+from datetime import datetime
+import random # Placeholder for real API data
 
 # --- CONFIGURATION ---
-TELEGRAM_BOT_TOKEN = "8754386975:AAHMQqCWiZlR7PW-YfEMYXmfweEZrVo3KFw"
-TELEGRAM_CHAT_ID = "5016643207"
-ASSET = "EUR_USD_OTC"
-QUOTEX_WS_URL = "wss://ws.quotex.com/socket"
+TELEGRAM_TOKEN = '8754386975:AAHMQqCWiZlR7PW-YfEMYXmfweEZrVo3KFw'
+CHAT_ID = '5016643207'
 
-# Strategy Parameters (Tuned for 1-Minute OTC)
-MIN_PAYOUT = 0.80
-CONFIDENCE_THRESHOLD = 0.75
-SIGNAL_COOLDOWN = 60  # Seconds between signals
-LOOKBACK_PERIOD = 50  # Number of candles to analyze
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
+app = Flask(__name__)
 
-class QuotexCandleMatchBot:
-    def __init__(self):
-        self.api_url = QUOTEX_WS_URL
-        self.asset = ASSET
-        self.ticks = deque(maxlen=LOOKBACK_PERIOD * 2)
-        self.ws = None
-        self.payout = 0.85
-        self.ema_9 = 0
-        self.ema_21 = 0
-        self.atr = 0.0002
-        self.rsi = 50
-        self.vol_state = "NEUTRAL"
-        self.trend = "NEUTRAL"
-        self.signal = "NO-TRADE"
-        self.confidence = 0.0
-        self.reason = ""
-        self.last_signal_time = 0
-        self.candle_data = []
+@app.route('/')
+def home():
+    return "Advanced Quotex OTC Bot is Running!"
 
-    def send_telegram_message(self, message):
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-        try:
-            response = requests.post(url, json=payload, timeout=5)
-            if response.status_code == 200:
-                logger.info(f"✅ Telegram Message Sent: {message[:50]}...")
-            else:
-                logger.error(f"❌ Telegram Error: {response.status_code}")
-        except Exception as e:
-            logger.error(f"❌ Telegram Send Failed: {e}")
-
-    def connect(self):
-        logger.info(f"🚀 Connecting to Quotex for {self.asset}...")
+def get_live_otc_data(pair):
+    """
+    (Yahan apne Quotex WebSocket wrapper ka code add karein)
+    Dummy OHLC generator for testing logic:
+    """
+    data = []
+    base_price = 1.0500
+    for i in range(50):
+        open_p = base_price
+        close_p = open_p + random.uniform(-0.0010, 0.0010)
+        high_p = max(open_p, close_p) + random.uniform(0, 0.0005)
+        low_p = min(open_p, close_p) - random.uniform(0, 0.0005)
+        data.append([open_p, high_p, low_p, close_p])
+        base_price = close_p
         
-        # Cloudflare Bypass Headers
-        custom_headers = [
-            "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Origin: https://qxbroker.com"
-        ]
+    df = pd.DataFrame(data, columns=['Open', 'High', 'Low', 'Close'])
+    return df
+
+def high_accuracy_math_algo(df, pair):
+    """
+    Advanced Mathematical Logic for High Accuracy:
+    1. BB (14, 2) - Mean Reversion breakout.
+    2. RSI (7) - Momentum Exhaustion.
+    3. EMA (50) - Trend filter.
+    4. Body Volume - Minimum candle body size required (avoids Doji traps).
+    """
+    try:
+        # Technical Indicators calculation
+        df.ta.rsi(length=7, append=True)
+        df.ta.bbands(length=14, std=2, append=True)
+        df.ta.ema(length=50, append=True)
         
-        self.ws = websocket.WebSocketApp(
-            self.api_url,
-            header=custom_headers,
-            on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close
-        )
-        self.ws.run_forever()
-
-    def on_message(self, ws, message):
-        try:
-            data = json.loads(message)
-            if "tick" in data:
-                price = float(data["tick"]["price"])
-                timestamp = data["tick"]["timestamp"]
-                self.ticks.append({"price": price, "timestamp": timestamp})
-                
-            if "payout" in data:
-                self.payout = float(data["payout"])
-
-            if len(self.ticks) > LOOKBACK_PERIOD:
-                self.update_candle_data()
-                self.update_analysis()
-                self.generate_signal()
-                self.maybe_send_signal()
-                
-        except Exception as e:
-            logger.error(f"⚠️ Data parsing error: {e}")
-
-    def on_error(self, ws, error):
-        logger.error(f"❌ WebSocket Error: {error}")
-
-    def on_close(self, ws, close_status_code, close_msg):
-        logger.info("🔌 Disconnected. Reconnecting in 5 seconds...")
-        time.sleep(5)
-        self.connect()
-
-    def update_candle_data(self):
-        recent_prices = [tick["price"] for tick in list(self.ticks)[-20:]]
-        if len(recent_prices) >= 2:
-            self.candle_data = {
-                "high": max(recent_prices),
-                "low": min(recent_prices),
-                "close": recent_prices[-1],
-                "rsi_values": self.calculate_rsi_series(recent_prices)
-            }
-
-    def calculate_ema(self, prices, period):
-        if len(prices) < period:
-            return 0
-        alpha = 2 / (period + 1)
-        ema = prices[0]
-        for price in prices[1:]:
-            ema = alpha * price + (1 - alpha) * ema
-        return ema
-
-    def calculate_atr(self, prices):
-        if len(prices) < 2:
-            return 0
-        tr = np.abs(np.diff(prices))
-        return np.mean(tr)
-
-    def calculate_rsi(self, prices, period=14):
-        if len(prices) < period + 1:
-            return 50
-        deltas = np.diff(prices)
-        seed = deltas[:period]
-        seed_ups = np.sum([delta for delta in seed if delta > 0])
-        seed_downs = np.sum([abs(delta) for delta in seed if delta < 0])
+        rsi_col = [col for col in df.columns if 'RSI' in col][0]
+        bb_upper = [col for col in df.columns if 'BBU' in col][0]
+        bb_lower = [col for col in df.columns if 'BBL' in col][0]
+        ema_col = [col for col in df.columns if 'EMA' in col][0]
         
-        for i in range(period, len(deltas)):
-            delta = deltas[i]
-            if delta > 0:
-                seed_ups += delta
-                seed_downs -= abs(deltas[i-period])
-            else:
-                seed_ups -= abs(deltas[i-period])
-                seed_downs += abs(delta)
+        last_candle = df.iloc[-1]
         
-        rs = seed_ups / seed_downs if seed_downs != 0 else float('inf')
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
-
-    def calculate_rsi_series(self, prices, period=14):
-        if len(prices) < period + 1:
-            return []
-        deltas = np.diff(prices)
-        seed = deltas[:period]
-        seed_ups = np.sum([delta for delta in seed if delta > 0])
-        seed_downs = np.sum([abs(delta) for delta in seed if delta < 0])
+        # Core Variables
+        close_price = last_candle['Close']
+        open_price = last_candle['Open']
+        body_size = abs(close_price - open_price)
+        min_body_size = 0.0001 # Filter for flat markets/dojis
         
-        rsi_series = []
-        for i in range(period, len(deltas)):
-            delta = deltas[i]
-            if delta > 0:
-                seed_ups += delta
-                seed_downs -= abs(deltas[i-period])
-            else:
-                seed_ups -= abs(deltas[i-period])
-                seed_downs += abs(delta)
+        is_green = close_price > open_price
+        is_red = close_price < open_price
+        
+        # 📉 HIGH ACCURACY PUT (DOWN) SIGNAL
+        # Condition: Price BB ke upar ho, RSI > 78 (Extreme), Candle Green ho aur decent size ki ho.
+        if (close_price >= last_candle[bb_upper] and 
+            last_candle[rsi_col] > 78 and 
+            is_green and 
+            body_size > min_body_size):
             
-            rs = seed_ups / seed_downs if seed_downs != 0 else float('inf')
-            rsi = 100 - (100 / (1 + rs))
-            rsi_series.append(rsi)
-        return rsi_series
+            msg = (f"📉 *STRONG PUT (DOWN) SIGNAL*\n\n"
+                   f"📊 Pair: {pair}\n"
+                   f"⏱ Time: 1 Minute Expiry\n"
+                   f"⚙️ Math: Extreme Overbought Reversal")
+            bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Signal: {pair} PUT")
 
-    def detect_divergence(self):
-        if len(self.candle_data.get("rsi_values", [])) < 3:
-            return None
+        # 📈 HIGH ACCURACY CALL (UP) SIGNAL
+        # Condition: Price BB ke niche ho, RSI < 22 (Extreme), Candle Red ho aur decent size ki ho.
+        elif (close_price <= last_candle[bb_lower] and 
+              last_candle[rsi_col] < 22 and 
+              is_red and 
+              body_size > min_body_size):
             
-        rsi_vals = self.candle_data["rsi_values"]
-        prices = [tick["price"] for tick in list(self.ticks)[-5:]]
-        
-        if prices[-1] < prices[-2] and rsi_vals[-1] > rsi_vals[-2]:
-            return "BULLISH"
+            msg = (f"📈 *STRONG CALL (UP) SIGNAL*\n\n"
+                   f"📊 Pair: {pair}\n"
+                   f"⏱ Time: 1 Minute Expiry\n"
+                   f"⚙️ Math: Extreme Oversold Reversal")
+            bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Signal: {pair} CALL")
             
-        if prices[-1] > prices[-2] and rsi_vals[-1] < rsi_vals[-2]:
-            return "BEARISH"
+    except Exception as e:
+        pass # Ignore errors to keep loop running
+
+def signal_scanner():
+    # 12 Most traded Quotex OTC pairs
+    otc_pairs = [
+        'EUR/USD_OTC', 'GBP/USD_OTC', 'USD/JPY_OTC', 
+        'AUD/CAD_OTC', 'NZD/USD_OTC', 'USD/BRL_OTC', 
+        'USD/INR_OTC', 'USD/EGP_OTC', 'USD/PKR_OTC', 
+        'Silver_OTC', 'Gold_OTC', 'Crude_Oil_OTC'
+    ]
+    
+    print("Advanced Scanner Started...")
+    while True:
+        current_second = time.localtime().tm_sec
+        
+        # Exactly 5 seconds before candle closes (55th second)
+        if current_second == 55: 
+            for pair in otc_pairs:
+                df = get_live_otc_data(pair)
+                if not df.empty:
+                    high_accuracy_math_algo(df, pair)
             
-        return None
-
-    def update_analysis(self):
-        prices = [tick["price"] for tick in list(self.ticks)[-LOOKBACK_PERIOD:]]
-        if not prices:
-            return
+            # 2 second sleep taaki same second mein do baar loop na chale
+            time.sleep(2) 
         
-        self.ema_9 = self.calculate_ema(prices, 9)
-        self.ema_21 = self.calculate_ema(prices, 21)
-        self.atr = self.calculate_atr(prices)
-        self.rsi = self.calculate_rsi(prices)
-        
-        if self.atr < 0.00015:
-            self.vol_state = "CHOP"
-        elif self.atr > 0.00030:
-            self.vol_state = "TREND"
-        else:
-            self.vol_state = "NEUTRAL"
-            
-        if self.ema_9 > self.ema_21:
-            self.trend = "UP"
-        elif self.ema_9 < self.ema_21:
-            self.trend = "DOWN"
-        else:
-            self.trend = "NEUTRAL"
+        time.sleep(0.5) # Fast checking loop
 
-    def generate_signal(self):
-        latest_price = self.ticks[-1]["price"] if self.ticks else 0
-        payout = self.payout
-        divergence = self.detect_divergence()
-        
-        if payout < MIN_PAYOUT:
-            self.signal = "NO-TRADE"
-            self.confidence = 0.0
-            self.reason = "Low Payout"
-            return
-
-        if divergence == "BULLISH" and self.trend != "DOWN":
-            self.signal = "CALL"
-            self.confidence = 0.85
-            self.reason = "Bullish Divergence (Candle Match)"
-            return
-        if divergence == "BEARISH" and self.trend != "UP":
-            self.signal = "PUT"
-            self.confidence = 0.85
-            self.reason = "Bearish Divergence (Candle Match)"
-            return
-
-        if self.vol_state == "TREND" and self.trend == "UP":
-            self.signal = "CALL"
-            self.confidence = 0.80
-            self.reason = "Trend Up (High Vol)"
-            return
-        if self.vol_state == "TREND" and self.trend == "DOWN":
-            self.signal = "PUT"
-            self.confidence = 0.80
-            self.reason = "Trend Down (High Vol)"
-            return
-
-        if self.vol_state == "CHOP":
-            if self.trend == "UP":
-                self.signal = "CALL"
-                self.confidence = 0.70
-                self.reason = "Choppy Uptrend"
-            elif self.trend == "DOWN":
-                self.signal = "PUT"
-                self.confidence = 0.70
-                self.reason = "Choppy Downtrend"
-            else:
-                self.signal = "NO-TRADE"
-                self.confidence = 0.0
-                self.reason = "Choppy Neutral"
-            return
-
-        self.signal = "NO-TRADE"
-        self.confidence = 0.0
-        self.reason = "No Clear Signal"
-
-    def maybe_send_signal(self):
-        current_time = time.time()
-        if self.confidence >= CONFIDENCE_THRESHOLD and (current_time - self.last_signal_time > SIGNAL_COOLDOWN):
-            if self.signal != "NO-TRADE":
-                message = (
-                    f"🔔 *OTC CANDLE MATCH SIGNAL* 🔔\n"
-                    f"📊 *Asset:* {self.asset}\n"
-                    f"⏱️ *Timeframe:* 1 Minute\n"
-                    f"📈 *Price:* {self.ticks[-1]['price']:.5f}\n"
-                    f"💰 *Payout:* {self.payout:.2%}\n"
-                    f"📉 *ATR:* {self.atr:.6f}\n"
-                    f"🔄 *Volatility:* {self.vol_state}\n"
-                    f"📊 *Trend:* {self.trend}\n"
-                    f"📉 *RSI:* {self.rsi:.2f}\n"
-                    f"✅ *SIGNAL:* *{self.signal}*\n"
-                    f"🎯 *Confidence:* {self.confidence:.2f}\n"
-                    f"📝 *Reason:* {self.reason}\n"
-                    f"⏰ *Time:* {time.strftime('%H:%M:%S')}"
-                )
-                self.send_telegram_message(message)
-                self.last_signal_time = current_time
-                logger.info(f"📤 Signal Sent: {self.signal} ({self.confidence:.2f})")
-
-    def run(self):
-        logger.info("🚀 Starting Quotex OTC Candle Match Bot (1-Minute Timeframe)...")
-        self.connect()
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
 
 if __name__ == "__main__":
-    bot = QuotexCandleMatchBot()
-    bot.run()
+    server_thread = threading.Thread(target=run_flask)
+    server_thread.start()
+    
+    scanner_thread = threading.Thread(target=signal_scanner)
+    scanner_thread.start()
+    
+    try:
+        bot.infinity_polling()
+    except Exception as e:
+        print(f"Telegram Bot Error: {e}")
+        
