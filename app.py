@@ -6,6 +6,7 @@ import threading
 from flask import Flask, request
 from datetime import datetime
 import random
+import os
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = '8754386975:AAHwL6pGKo9YD4tqkseiwMC3jOnjkRJ8ZFU'
@@ -18,7 +19,7 @@ app = Flask(__name__)
 def home():
     return "Quotex All-OTC Math Core Bot is Running!"
 
-# Webhook route to prevent 409 Conflict Error
+# Webhook route to receive updates from Telegram smoothly
 @app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
 def receive_message():
     json_string = request.get_data().decode('utf-8')
@@ -54,7 +55,6 @@ def core_mathematical_analysis(df, pair):
         rsi_col = [col for col in df.columns if 'RSI' in col][0]
         bb_upper = [col for col in df.columns if 'BBU' in col][0]
         bb_lower = [col for col in df.columns if 'BBL' in col][0]
-        ema_col = [col for col in df.columns if 'EMA' in col][0]
         
         last = df.iloc[-1]
         
@@ -71,7 +71,6 @@ def core_mathematical_analysis(df, pair):
         is_red = close_p < open_p
         
         # 📉 1-MIN PUT (DOWN) MATH SIGNAL
-        # Math condition: Price upper Bollinger Band ko cross kare, RSI extreme overbought ho, aur rejection wick ho.
         if (close_p >= last[bb_upper] and 
             last[rsi_col] > 79 and 
             is_green and 
@@ -84,7 +83,6 @@ def core_mathematical_analysis(df, pair):
             bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
 
         # 📈 1-MIN CALL (UP) MATH SIGNAL
-        # Math condition: Price lower Bollinger Band ko cross kare, RSI extreme oversold ho, aur lower rejection wick ho.
         elif (close_p <= last[bb_lower] and 
               last[rsi_col] < 21 and 
               is_red and 
@@ -128,5 +126,12 @@ if __name__ == "__main__":
     scanner_thread = threading.Thread(target=signal_scanner)
     scanner_thread.start()
     
+    # Automatic Webhook Setup for Render
+    RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL')
+    if RENDER_URL:
+        bot.remove_webhook()
+        time.sleep(1)
+        bot.set_webhook(url=f"{RENDER_URL}/{TELEGRAM_TOKEN}")
+        print(f"Webhook set successfully to: {RENDER_URL}/{TELEGRAM_TOKEN}")
+        
     app.run(host="0.0.0.0", port=8080)
-    
