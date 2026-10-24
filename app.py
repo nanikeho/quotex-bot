@@ -8,7 +8,7 @@ from datetime import datetime
 import random # Placeholder for real API data
 
 # --- CONFIGURATION ---
-TELEGRAM_TOKEN = '8754386975:AAHMQqCWiZlR7PW-YfEMYXmfweEZrVo3KFw'
+TELEGRAM_TOKEN = '8754386975:AAHwL6pGKo9YD4tqkseiwMC3jOnjkRJ8ZFU'
 CHAT_ID = '5016643207'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
