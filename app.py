@@ -59,8 +59,16 @@ class QuotexCandleMatchBot:
 
     def connect(self):
         logger.info(f"🚀 Connecting to Quotex for {self.asset}...")
+        
+        # Cloudflare Bypass Headers
+        custom_headers = [
+            "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Origin: https://qxbroker.com"
+        ]
+        
         self.ws = websocket.WebSocketApp(
             self.api_url,
+            header=custom_headers,
             on_message=self.on_message,
             on_error=self.on_error,
             on_close=self.on_close
@@ -285,4 +293,3 @@ class QuotexCandleMatchBot:
 if __name__ == "__main__":
     bot = QuotexCandleMatchBot()
     bot.run()
-        
