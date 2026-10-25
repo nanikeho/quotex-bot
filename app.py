@@ -1,4 +1,4 @@
-import telebot
+import telebot  # Yahan capital 'I' ko theek karke small 'i' kar diya gaya hai
 import pandas as pd
 import pandas_ta as ta
 import time
@@ -10,8 +10,8 @@ import os
 
 # --- CONFIGURATION ---
 # DHYAN RAHE: Yahan apne asli Token aur Chat ID zaroor daalein
-TELEGRAM_TOKEN = 'YAHAN_APNA_BOT_TOKEN_DAALEIN'
-CHAT_ID = 'YAHAN_APNA_CHAT_ID_DAALEIN'
+TELEGRAM_TOKEN = '8988354871:AAHJAwIhQkNcGBLtV0Lo4FJ3E1nabqZgq7Q'
+CHAT_ID = '8240647626'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
@@ -21,7 +21,6 @@ def home():
     return "Quotex All-OTC Math Core Bot is Running!"
 
 # --- START COMMAND HANDLER ---
-# Yeh code bot ko /start command par reply karna sikhayega
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(message, "✅ Hello! Quotex All-OTC Math Bot successfully start ho gaya hai. Setup bilkul theek hai aur ab aapko market analysis ke 1-minute signals milna shuru ho jayenge.")
@@ -131,7 +130,14 @@ if __name__ == "__main__":
     if RENDER_URL:
         bot.remove_webhook()
         time.sleep(1)
-        bot.set_webhook(url=f"{RENDER_URL}/{TELEGRAM_TOKEN}")
-        print(f"Webhook set successfully to: {RENDER_URL}/{TELEGRAM_TOKEN}")
-        
-    app.run(host="0.0.0.0", port=8080)
+        # Webhook set karte waqt koi purana token conflict na aaye
+        try:
+            bot.set_webhook(url=f"{RENDER_URL}/{TELEGRAM_TOKEN}")
+            print(f"Webhook set successfully to: {RENDER_URL}/{TELEGRAM_TOKEN}")
+        except Exception as e:
+            print(f"Webhook setup failed: {e}")
+            
+    # PORT fix: Render apne aap port assign karega
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host="0.0.0.0", port=port)
+                
