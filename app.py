@@ -1,4 +1,4 @@
-import telebot  # Yahan capital 'I' ko theek karke small 'i' kar diya gaya hai
+import telebot
 import pandas as pd
 import pandas_ta as ta
 import time
@@ -9,23 +9,61 @@ import random
 import os
 
 # --- CONFIGURATION ---
-# DHYAN RAHE: Yahan apne asli Token aur Chat ID zaroor daalein
-TELEGRAM_TOKEN = '8988354871:AAHJAwIhQkNcGBLtV0Lo4FJ3E1nabqZgq7Q'
-CHAT_ID = '8240647626'
+TELEGRAM_TOKEN = 'YAHAN_APNA_BOT_TOKEN_DAALEIN'
+CHAT_ID = 'YAHAN_APNA_CHAT_ID_DAALEIN'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
+# Manual selection ke liye dynamic list
+active_pairs = set()
+
 @app.route('/')
 def home():
-    return "Quotex All-OTC Math Core Bot is Running!"
+    return "Quotex Manual Pair Setup Bot is Running!"
 
-# --- START COMMAND HANDLER ---
+# --- TELEGRAM COMMANDS ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "✅ Hello! Quotex All-OTC Math Bot successfully start ho gaya hai. Setup bilkul theek hai aur ab aapko market analysis ke 1-minute signals milna shuru ho jayenge.")
+    msg = ("✅ Bot Started!\n\n"
+           "Ab aap manually pairs select kar sakte hain.\n"
+           "Commands:\n"
+           "/add EUR/USD_OTC -> Pair add karne ke liye\n"
+           "/remove EUR/USD_OTC -> Pair hatane ke liye\n"
+           "/list -> Active pairs dekhne ke liye")
+    bot.reply_to(message, msg)
 
-# Webhook route to receive updates from Telegram smoothly
+@bot.message_handler(commands=['add'])
+def add_pair(message):
+    try:
+        pair = message.text.split()[1].upper()
+        if "_OTC" not in pair:
+            pair += "_OTC"
+        active_pairs.add(pair)
+        bot.reply_to(message, f"✅ {pair} background analysis ke liye add ho gaya hai.")
+    except Exception:
+        bot.reply_to(message, "❌ Sahi format use karein: /add EUR/USD_OTC")
+
+@bot.message_handler(commands=['remove'])
+def remove_pair(message):
+    try:
+        pair = message.text.split()[1].upper()
+        if "_OTC" not in pair:
+            pair += "_OTC"
+        active_pairs.discard(pair)
+        bot.reply_to(message, f"🗑️ {pair} analysis list se hata diya gaya hai.")
+    except Exception:
+        bot.reply_to(message, "❌ Sahi format use karein: /remove EUR/USD_OTC")
+
+@bot.message_handler(commands=['list'])
+def list_pairs(message):
+    if not active_pairs:
+        bot.reply_to(message, "⚠️ Abhi koi pair selected nahi hai. /add command ka use karein.")
+        return
+    pairs_str = "\n".join(active_pairs)
+    bot.reply_to(message, f"📋 Currently Active Pairs:\n{pairs_str}")
+
+# --- WEBHOOK ROUTE ---
 @app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
 def receive_message():
     json_string = request.get_data().decode('utf-8')
@@ -71,50 +109,26 @@ def core_mathematical_analysis(df, pair):
         is_green = close_p > open_p
         is_red = close_p < open_p
         
-        # 📉 1-MIN PUT (DOWN) MATH SIGNAL
-        if (close_p >= last[bb_upper] and 
-            last[rsi_col] > 79 and 
-            is_green and 
-            upper_wick > body_size):
-            
-            msg = (f"📉 *1-MIN PUT (DOWN) SIGNAL*\n\n"
-                   f"📊 Pair: {pair}\n"
-                   f"⏱ Expiry: 1 Minute\n"
-                   f"⚙️ Math Core: BB Upper Breach + RSI Overbought + Wick Rejection")
+        # 📉 1-MIN PUT
+        if (close_p >= last[bb_upper] and last[rsi_col] > 79 and is_green and upper_wick > body_size):
+            msg = f"📉 *PUT SIGNAL*\n📊 Pair: {pair}\n⏱ Expiry: 1 Min"
             bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
 
-        # 📈 1-MIN CALL (UP) MATH SIGNAL
-        elif (close_p <= last[bb_lower] and 
-              last[rsi_col] < 21 and 
-              is_red and 
-              lower_wick > body_size):
-            
-            msg = (f"📈 *1-MIN CALL (UP) SIGNAL*\n\n"
-                   f"📊 Pair: {pair}\n"
-                   f"⏱ Expiry: 1 Minute\n"
-                   f"⚙️ Math Core: BB Lower Breach + RSI Oversold + Wick Rejection")
+        # 📈 1-MIN CALL
+        elif (close_p <= last[bb_lower] and last[rsi_col] < 21 and is_red and lower_wick > body_size):
+            msg = f"📈 *CALL SIGNAL*\n📊 Pair: {pair}\n⏱ Expiry: 1 Min"
             bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
             
     except Exception as e:
         pass
 
 def signal_scanner():
-    all_otc_pairs = [
-        'EUR/USD_OTC', 'GBP/USD_OTC', 'AUD/USD_OTC', 'USD/JPY_OTC', 
-        'USD/CHF_OTC', 'EUR/GBP_OTC', 'AUD/CAD_OTC', 'NZD/USD_OTC', 
-        'USD/CAD_OTC', 'EUR/JPY_OTC', 'GBP/JPY_OTC', 'EUR/AUD_OTC', 
-        'GBP/AUD_OTC', 'CAD/JPY_OTC', 'EUR/CAD_OTC', 'CHF/JPY_OTC', 
-        'NZD/JPY_OTC', 'AUD/JPY_OTC', 'USD/BRL_OTC', 'USD/INR_OTC', 
-        'USD/MXN_OTC', 'USD/ZAR_OTC', 'USD/TRY_OTC', 'USD/PKR_OTC', 
-        'USD/EGP_OTC', 'Gold_OTC', 'Silver_OTC', 'Crude_Oil_OTC', 
-        'Bitcoin_OTC', 'Ethereum_OTC'
-    ]
-    
-    print("All-OTC Core Math Scanner Started...")
     while True:
         current_second = time.localtime().tm_sec
-        if current_second == 55: 
-            for pair in all_otc_pairs:
+        # Sirf tab scan karega jab active_pairs mein koi pair hoga
+        if current_second == 55 and active_pairs: 
+            # list() use karna zaroori hai taaki loop chalte waqt set change na ho
+            for pair in list(active_pairs):
                 df = get_live_otc_data(pair)
                 if not df.empty:
                     core_mathematical_analysis(df, pair)
@@ -125,19 +139,14 @@ if __name__ == "__main__":
     scanner_thread = threading.Thread(target=signal_scanner)
     scanner_thread.start()
     
-    # Automatic Webhook Setup for Render
     RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL')
     if RENDER_URL:
         bot.remove_webhook()
         time.sleep(1)
-        # Webhook set karte waqt koi purana token conflict na aaye
         try:
             bot.set_webhook(url=f"{RENDER_URL}/{TELEGRAM_TOKEN}")
-            print(f"Webhook set successfully to: {RENDER_URL}/{TELEGRAM_TOKEN}")
-        except Exception as e:
-            print(f"Webhook setup failed: {e}")
+        except Exception:
+            pass
             
-    # PORT fix: Render apne aap port assign karega
     port = int(os.environ.get('PORT', 8080))
     app.run(host="0.0.0.0", port=port)
-                
