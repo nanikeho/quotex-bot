@@ -9,8 +9,9 @@ import random
 import os
 
 # --- CONFIGURATION ---
-TELEGRAM_TOKEN = '8754386975:AAHwL6pGKo9YD4tqkseiwMC3jOnjkRJ8ZFU'
-CHAT_ID = '5016643207'
+# DHYAN RAHE: Yahan apne asli Token aur Chat ID zaroor daalein
+TELEGRAM_TOKEN = 'YAHAN_APNA_BOT_TOKEN_DAALEIN'
+CHAT_ID = 'YAHAN_APNA_CHAT_ID_DAALEIN'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
@@ -18,6 +19,12 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return "Quotex All-OTC Math Core Bot is Running!"
+
+# --- START COMMAND HANDLER ---
+# Yeh code bot ko /start command par reply karna sikhayega
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "✅ Hello! Quotex All-OTC Math Bot successfully start ho gaya hai. Setup bilkul theek hai aur ab aapko market analysis ke 1-minute signals milna shuru ho jayenge.")
 
 # Webhook route to receive updates from Telegram smoothly
 @app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
@@ -28,10 +35,6 @@ def receive_message():
     return "!", 200
 
 def get_live_otc_data(pair):
-    """
-    Dummy OHLC generator for math analysis simulation.
-    Real data ke liye yahan quotexapi WebSocket wrapper connect karein.
-    """
     data = []
     base_price = 1.0500
     for i in range(50):
@@ -47,7 +50,6 @@ def get_live_otc_data(pair):
 
 def core_mathematical_analysis(df, pair):
     try:
-        # Core Mathematics Indicators for 1-Min Expiry
         df.ta.rsi(length=7, append=True)
         df.ta.bbands(length=14, std=2, append=True)
         df.ta.ema(length=50, append=True)
@@ -98,7 +100,6 @@ def core_mathematical_analysis(df, pair):
         pass
 
 def signal_scanner():
-    # Quotex ke sabhi major aur popular OTC pairs ki complete list (No manual selection needed)
     all_otc_pairs = [
         'EUR/USD_OTC', 'GBP/USD_OTC', 'AUD/USD_OTC', 'USD/JPY_OTC', 
         'USD/CHF_OTC', 'EUR/GBP_OTC', 'AUD/CAD_OTC', 'NZD/USD_OTC', 
@@ -113,7 +114,6 @@ def signal_scanner():
     print("All-OTC Core Math Scanner Started...")
     while True:
         current_second = time.localtime().tm_sec
-        # Har 1-minute ki candle close hone se 5 second pehle (55th second) sabhi pairs scan honge
         if current_second == 55: 
             for pair in all_otc_pairs:
                 df = get_live_otc_data(pair)
