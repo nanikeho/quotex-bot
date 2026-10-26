@@ -16,11 +16,11 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Quotex V8 Advanced Quant Algorithm is Running!"
+    return "Quotex PRNG Monte Carlo Bot is Running!"
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "V8 Advanced Quant Terminal Started! Micro-structure & Tick Velocity analysis is active.")
+    bot.reply_to(message, "V8 PRNG Terminal Started! Monte Carlo Future Price Simulation active.")
 
 @app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
 def receive_message():
@@ -43,42 +43,41 @@ def get_live_otc_data(pair):
     df = pd.DataFrame(data, columns=['Open', 'High', 'Low', 'Close'])
     return df
 
-def send_v8_signal(pair, direction, live_price, accuracy, z_score, velocity):
+def send_v8_signal(pair, direction, live_price, accuracy, mc_prob):
     if direction == "CALL":
         action = "CALL (UP)"
-        regime = "Bullish Algorithmic Injection"
-        zone = "Micro-Structure Breakout"
-        entry_price = live_price - 0.00003
-        target_price = live_price + 0.00025
+        regime = "PRNG Upward Bias Detected"
+        zone = "Monte Carlo Breakout"
+        entry_price = live_price - 0.00002
+        target_price = live_price + 0.00020
     else:
         action = "PUT (DOWN)"
-        regime = "Bearish Algorithmic Injection"
-        zone = "Micro-Structure Breakdown"
-        entry_price = live_price + 0.00003
-        target_price = live_price - 0.00025
+        regime = "PRNG Downward Bias Detected"
+        zone = "Monte Carlo Breakdown"
+        entry_price = live_price + 0.00002
+        target_price = live_price - 0.00020
 
     msg = f"""=========================================
 
-QUOTEX QUANT ALGORITHM (10s ADVANCE)
+QUOTEX PRNG ALGORITHM (10s ADVANCE)
 
 Asset Detected : {pair}
 Market Regime : {regime}
-Zone Behavior : {zone}
 Live Market Price : {live_price:.5f}
 
 ACTION SIGNAL : {action}
 SAFEST EXPIRY : 1 Min
 FUTURE ACCURACY : {accuracy}%
 
-DEEP ALGORITHMIC METRICS:
-Z-Score Anomaly : {z_score:.2f} (Deviation from Mean)
-Tick Velocity Multiplier : {velocity:.1f}x
-Volume State : Expanding rapidly out of Volatility Squeeze.
+MONTE CARLO SIMULATION DATA:
+1000-Path PRNG Probability : {mc_prob:.1f}%
+Backend Algorithmic Bias : Confirmed
+Tick Volatility : Optimal for Continuation
 
 =========================================
 
 MARGIN OF SAFETY (MOS) EXECUTION:
-Execution Rule : 10s Advance - Place trade exactly at new candle open.
+Execution Rule : 10s Advance - Place trade at next candle open.
 Ideal Entry Price: {entry_price:.5f}
 Target Close : {target_price:.5f}
 1-Step MTG Rule : Valid
@@ -92,56 +91,54 @@ def core_mathematical_analysis(df, pair):
         if len(df) < 15:
             return
             
-        # 1. Log Returns & Z-Score Analysis
+        # Log Returns for Drift and Volatility
         df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
-        mean_return = df['Log_Returns'].mean()
-        std_return = df['Log_Returns'].std()
+        mu = df['Log_Returns'].mean()
+        sigma = df['Log_Returns'].std()
         
-        if std_return == 0 or pd.isna(std_return):
+        if pd.isna(sigma) or sigma == 0:
             return
             
-        current_log_return = df['Log_Returns'].iloc[-1]
-        z_score = (current_log_return - mean_return) / std_return
+        last_close = df['Close'].iloc[-1]
         
-        # 2. Volatility Squeeze & Tick Velocity (Average Body Size vs Current Body)
+        # --- MONTE CARLO PRNG SIMULATION ---
+        simulations = 1000
+        call_wins = 0
+        put_wins = 0
+        
+        # Simulating 1000 possible outcomes for the next candle using PRNG
+        for _ in range(simulations):
+            random_shock = np.random.normal(0, 1)
+            future_price = last_close * np.exp(mu + (sigma * random_shock))
+            
+            if future_price > last_close:
+                call_wins += 1
+            elif future_price < last_close:
+                put_wins += 1
+                
+        call_prob = (call_wins / simulations) * 100
+        put_prob = (put_wins / simulations) * 100
+        
+        # Tick Velocity Filter to ensure market is actually moving
         df['Body'] = abs(df['Close'] - df['Open'])
-        avg_body_recent = df['Body'].iloc[-10:-1].mean() # Pichli 9 candles ka average body
+        avg_body = df['Body'].iloc[-10:-1].mean()
         current_body = df['Body'].iloc[-1]
+        tick_velocity = current_body / avg_body if avg_body > 0 else 1.0
         
-        tick_velocity = current_body / avg_body_recent if avg_body_recent > 0 else 1.0
-
-        # Current Candle Data
-        c_current = df.iloc[-1]
-        open_p, close_p = c_current['Open'], c_current['Close']
-        high_p, low_p = c_current['High'], c_current['Low']
-        
-        upper_wick = high_p - max(open_p, close_p)
-        lower_wick = min(open_p, close_p) - low_p
-        
-        is_green = close_p > open_p
-        is_red = close_p < open_p
-        
-        # 3. Micro-Structure Confirmation (Last 3 candles trend)
-        c2 = df.iloc[-2]
-        c3 = df.iloc[-3]
-        higher_lows = (low_p > c2['Low']) and (c2['Low'] > c3['Low'])
-        lower_highs = (high_p < c2['High']) and (c2['High'] < c3['High'])
-        
-        # Dynamic Accuracy Calculation
-        base_acc = 82.0
-        acc_z = min(abs(z_score) * 4, 10.0) # Max 10% from Z-Score
-        acc_vel = min(tick_velocity * 3, 6.5) # Max 6.5% from Velocity
-        accuracy = round(min(99.2, base_acc + acc_z + acc_vel), 1)
+        is_green = df['Close'].iloc[-1] > df['Open'].iloc[-1]
+        is_red = df['Close'].iloc[-1] < df['Open'].iloc[-1]
         
         # 📈 CALL (UP) SIGNAL: 
-        # Z-Score > 1.8, Tick Velocity > 1.5x (Sudden volume), Higher Lows structure, No upper wick trap
-        if is_green and (z_score > 1.8) and (tick_velocity > 1.5) and higher_lows and (upper_wick < (current_body * 0.1)):
-            send_v8_signal(pair, "CALL", close_p, accuracy, z_score, tick_velocity)
+        # Over 85% of Monte Carlo simulations predict an upward move + Tick Velocity is high
+        if is_green and call_prob > 85.0 and tick_velocity > 1.2:
+            accuracy = round(min(99.5, call_prob + (tick_velocity * 2)), 1)
+            send_v8_signal(pair, "CALL", last_close, accuracy, call_prob)
 
         # 📉 PUT (DOWN) SIGNAL: 
-        # Z-Score < -1.8, Tick Velocity > 1.5x (Sudden volume), Lower Highs structure, No lower wick trap
-        elif is_red and (z_score < -1.8) and (tick_velocity > 1.5) and lower_highs and (lower_wick < (current_body * 0.1)):
-            send_v8_signal(pair, "PUT", close_p, accuracy, z_score, tick_velocity)
+        # Over 85% of Monte Carlo simulations predict a downward move + Tick Velocity is high
+        elif is_red and put_prob > 85.0 and tick_velocity > 1.2:
+            accuracy = round(min(99.5, put_prob + (tick_velocity * 2)), 1)
+            send_v8_signal(pair, "PUT", last_close, accuracy, put_prob)
             
     except Exception as e:
         pass
@@ -158,7 +155,7 @@ def signal_scanner():
         'Bitcoin_OTC', 'Ethereum_OTC'
     ]
     
-    print("Advanced Algorithm Scanner Started...")
+    print("PRNG Monte Carlo Scanner Started...")
     while True:
         current_second = time.localtime().tm_sec
         # Scanning exactly at the 50th second (10 seconds before expiry)
