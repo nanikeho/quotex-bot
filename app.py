@@ -69,27 +69,39 @@ def send_v8_signal(pair, direction, live_price, accuracy):
 QUOTEX V8 GOD LEVEL TERMINAL (MOMENTUM OVERRIDE)
 
 Asset Detected : {pair}
+
 Market Regime : {regime}
+
 Zone Behavior : {zone}
-Live Market Price : {live_price:.5f}ACTION SIGNAL : {action}
+
+Live Market Price : {live_price:.5f}
+
+ACTION SIGNAL : {action}
 
 SAFEST EXPIRY : 1 Min
 
 SETUP GRADE : God-Tier A+
+
 FUTURE CANDLE ACCURACY : {accuracy}% (Calculated via Market Algorithm)
 
 V8 MOMENTUM & LIQUIDITY VOID ANALYSIS:
 
 Left-Side Context: {left_context}
+
 Candle Physics : Full-bodied momentum with zero rejection wicks.
+
 Retail Trap : {trap}
 
 ======================
 
 MARGIN OF SAFETY (MOS) EXECUTION:
+
 Execution Rule : Immediate entry on minor pullback in trend direction.
+
 Exact Entry Price: {entry_price:.5f}
+
 Wave Target : {target_price:.5f}
+
 1-Step MTG Rule : Valid
 
 ========================
@@ -180,4 +192,3 @@ if __name__ == "__main__":
             
     port = int(os.environ.get('PORT', 8080))
     app.run(host="0.0.0.0", port=port)
-    
