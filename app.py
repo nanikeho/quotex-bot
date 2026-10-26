@@ -43,7 +43,7 @@ def get_live_otc_data(pair):
     df = pd.DataFrame(data, columns=['Open', 'High', 'Low', 'Close'])
     return df
 
-def send_v8_signal(pair, direction, live_price, accuracy):
+def send_v8_signal(pair, direction, live_price):
     if direction == "CALL":
         action = "CALL (UP)"
         regime = "Blue Sky Breakout"
@@ -82,8 +82,6 @@ SAFEST EXPIRY : 1 Min
 
 SETUP GRADE : God-Tier A+
 
-FUTURE CANDLE ACCURACY : {accuracy}% (Calculated via Market Algorithm)
-
 V8 MOMENTUM & LIQUIDITY VOID ANALYSIS:
 
 Left-Side Context: {left_context}
@@ -92,7 +90,7 @@ Candle Physics : Full-bodied momentum with zero rejection wicks.
 
 Retail Trap : {trap}
 
-======================
+=========================================
 
 MARGIN OF SAFETY (MOS) EXECUTION:
 
@@ -104,13 +102,13 @@ Wave Target : {target_price:.5f}
 
 1-Step MTG Rule : Valid
 
-========================
+=========================================
 
 CRITICAL FORENSIC REASONING:
 
 {reasoning}
 
-========================"""
+========================================="""
 
     bot.send_message(chat_id=CHAT_ID, text=msg)
 
@@ -137,19 +135,17 @@ def core_mathematical_analysis(df, pair):
         is_green = close_p > open_p
         is_red = close_p < open_p
         
-        # Future candle accuracy calculation logic (based on momentum strength and candle body domination)
-        # Jitna bada body size aur jitna RSI extreme par hoga, accuracy utni high aayegi.
-        wick_size = upper_wick + lower_wick + 0.00001 # prevent division by zero
-        momentum_strength = min(98.7, 85 + (abs(last[rsi_col] - 50) * 0.2) + (body_size / wick_size))
-        final_accuracy = round(momentum_strength, 1)
-
         # 📈 V8 CALL (CONTINUATION) LOGIC: 
+        # Price is breaking UPPER BB, RSI is high (strong momentum), Body is large, Wicks are tiny. 
+        # We do NOT reverse, we continue the trend.
         if (close_p > last[bb_upper] and last[rsi_col] > 70 and is_green and body_size > (upper_wick + lower_wick)):
-            send_v8_signal(pair, "CALL", close_p, final_accuracy)
+            send_v8_signal(pair, "CALL", close_p)
 
         # 📉 V8 PUT (CONTINUATION) LOGIC: 
+        # Price is breaking LOWER BB, RSI is low (strong downtrend momentum), Body is large, Wicks are tiny.
+        # We ride the drop.
         elif (close_p < last[bb_lower] and last[rsi_col] < 30 and is_red and body_size > (upper_wick + lower_wick)):
-            send_v8_signal(pair, "PUT", close_p, final_accuracy)
+            send_v8_signal(pair, "PUT", close_p)
             
     except Exception as e:
         pass
@@ -192,3 +188,4 @@ if __name__ == "__main__":
             
     port = int(os.environ.get('PORT', 8080))
     app.run(host="0.0.0.0", port=port)
+    
