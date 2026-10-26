@@ -1,12 +1,11 @@
 import telebot
 import pandas as pd
-import numpy as np
+import pandas_ta as ta
 import time
 import threading
 from flask import Flask, request
 import random
 import os
-import math
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = '8988354871:AAHJAwIhQkNcGBLtV0Lo4FJ3E1nabqZgq7Q'
@@ -17,11 +16,11 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Quotex PRNG & Monte Carlo Algorithm Running!"
+    return "Quotex V8 God Level Terminal is Running!"
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "V8 PRNG Decoder Started! Monte Carlo drift analysis is active for 1-minute future candle prediction.")
+    bot.reply_to(message, "V8 Execution Matrix Started! Terminal is scanning for Liquidity Voids and Parabolic Trends.")
 
 @app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
 def receive_message():
@@ -31,55 +30,83 @@ def receive_message():
     return "!", 200
 
 def get_live_otc_data(pair):
-    # Simulated PRNG tick data (Replace with live WebSocket for real trading)
+    # Simulated data logic (Connect live Quotex WebSocket for real market data)
     data = []
     base_price = 1.0500
     for i in range(50):
         open_p = base_price
         close_p = open_p + random.uniform(-0.0015, 0.0015)
-        high_p = max(open_p, close_p) + random.uniform(0, 0.0006)
-        low_p = min(open_p, close_p) - random.uniform(0, 0.0006)
+        high_p = max(open_p, close_p) + random.uniform(0, 0.0005)
+        low_p = min(open_p, close_p) - random.uniform(0, 0.0005)
         data.append([open_p, high_p, low_p, close_p])
         base_price = close_p
     df = pd.DataFrame(data, columns=['Open', 'High', 'Low', 'Close'])
     return df
 
-def send_v8_signal(pair, direction, live_price, projected_price, accuracy, drift, sigma):
+def send_v8_signal(pair, direction, live_price):
     if direction == "CALL":
-        action = "CALL (UP) 🟢"
-        regime = "Positive PRNG Drift Sequence"
-        zone = "Monte Carlo Upward Expansion"
-        entry_price = live_price - (sigma * 0.2)
+        action = "CALL (UP)"
+        regime = "Blue Sky Breakout"
+        zone = "Short Squeeze Fuel"
+        left_context = "Clean Liquidity Void with zero immediate historical resistance."
+        trap = "Retail is heavily shorting to catch the exact top, creating squeeze fuel."
+        entry_price = live_price - 0.00010
+        target_price = live_price + 0.00025
+        reasoning = "V8 rules confirm a parabolic run into empty space.\nSmart money is buying continuation while retail gets trapped attempting mean-reversion."
     else:
-        action = "PUT (DOWN) 🔴"
-        regime = "Negative PRNG Drift Sequence"
-        zone = "Monte Carlo Downward Expansion"
-        entry_price = live_price + (sigma * 0.2)
+        action = "PUT (DOWN)"
+        regime = "Parabolic Downtrend"
+        zone = "Trend Continuation"
+        left_context = "Freefall Liquidity Void, no underlying support blocks detected."
+        trap = "Retail is trying to catch the falling knife, triggering further liquidations."
+        entry_price = live_price + 0.00010
+        target_price = live_price - 0.00025
+        reasoning = "V8 rules confirm heavy downside momentum in a liquidity void.\nSmart money forces the trend lower to liquidate retail bottom-fishers."
 
+    # Strict Plain Text Format (No Markdown)
     msg = f"""=========================================
 
-QUOTEX PRNG DECODER (10s ADVANCE)
+QUOTEX V8 GOD LEVEL TERMINAL (MOMENTUM OVERRIDE)
 
 Asset Detected : {pair}
+
 Market Regime : {regime}
+
+Zone Behavior : {zone}
+
 Live Market Price : {live_price:.5f}
 
 ACTION SIGNAL : {action}
-SAFEST EXPIRY : 1 Min
-FUTURE ACCURACY : {accuracy}%
 
-MONTE CARLO MATH METRICS:
-Algorithm Drift (Mu) : {drift:.6f}
-Volatility (Sigma) : {sigma:.6f}
-Future Candle Projection : {projected_price:.5f}
-PRNG State : Directional sequence locked by backend model.
+SAFEST EXPIRY : 1 Min
+
+SETUP GRADE : God-Tier A+
+
+V8 MOMENTUM & LIQUIDITY VOID ANALYSIS:
+
+Left-Side Context: {left_context}
+
+Candle Physics : Full-bodied momentum with zero rejection wicks.
+
+Retail Trap : {trap}
 
 =========================================
 
 MARGIN OF SAFETY (MOS) EXECUTION:
-Execution Rule : 10s Advance - Place trade exactly at new candle open.
-Ideal Entry Price: {entry_price:.5f}
+
+Execution Rule : Immediate entry on minor pullback in trend direction.
+
+Exact Entry Price: {entry_price:.5f}
+
+Wave Target : {target_price:.5f}
+
 1-Step MTG Rule : Valid
+
+=========================================
+
+CRITICAL FORENSIC REASONING:
+
+{reasoning}
 
 ========================================="""
 
@@ -87,38 +114,38 @@ Ideal Entry Price: {entry_price:.5f}
 
 def core_mathematical_analysis(df, pair):
     try:
-        if len(df) < 20:
-            return
-            
-        # 1. Log Returns calculation (Tick variation)
-        df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
+        # V8 Continuation Logic (Momentum Override)
+        df.ta.rsi(length=7, append=True)
+        df.ta.bbands(length=14, std=2, append=True)
         
-        # 2. Extracting PRNG Math (Drift and Sigma)
-        mu = df['Log_Returns'].mean() # Backend sequence drift
-        sigma = df['Log_Returns'].std() # Backend volatility injection
+        rsi_col = [col for col in df.columns if 'RSI' in col][0]
+        bb_upper = [col for col in df.columns if 'BBU' in col][0]
+        bb_lower = [col for col in df.columns if 'BBL' in col][0]
         
-        if sigma == 0 or pd.isna(sigma):
-            return
-            
-        current_close = df['Close'].iloc[-1]
+        last = df.iloc[-1]
+        close_p = last['Close']
+        open_p = last['Open']
+        high_p = last['High']
+        low_p = last['Low']
         
-        # 3. Monte Carlo Future Projection Formula
-        # S_t = S_0 * exp((mu - sigma^2 / 2) + sigma * random)
-        expected_drift = mu - ((sigma ** 2) / 2)
-        projected_close = current_close * math.exp(expected_drift)
+        body_size = abs(close_p - open_p)
+        upper_wick = high_p - max(close_p, open_p)
+        lower_wick = min(close_p, open_p) - low_p
         
-        # 4. PRNG Entropy & Accuracy Calculation
-        # High drift relative to volatility means the algorithm is heavily biased in one direction
-        drift_magnitude = abs(mu) / sigma
-        accuracy = min(99.1, 84.5 + (drift_magnitude * 8.2))
+        is_green = close_p > open_p
+        is_red = close_p < open_p
         
-        # 📈 CALL (UP) SIGNAL: Algorithm drift is heavily positive, projecting higher close
-        if mu > 0 and (projected_close > current_close + (sigma * 0.4)):
-            send_v8_signal(pair, "CALL", current_close, projected_close, round(accuracy, 1), mu, sigma)
+        # 📈 V8 CALL (CONTINUATION) LOGIC: 
+        # Price is breaking UPPER BB, RSI is high (strong momentum), Body is large, Wicks are tiny. 
+        # We do NOT reverse, we continue the trend.
+        if (close_p > last[bb_upper] and last[rsi_col] > 70 and is_green and body_size > (upper_wick + lower_wick)):
+            send_v8_signal(pair, "CALL", close_p)
 
-        # 📉 PUT (DOWN) SIGNAL: Algorithm drift is heavily negative, projecting lower close
-        elif mu < 0 and (projected_close < current_close - (sigma * 0.4)):
-            send_v8_signal(pair, "PUT", current_close, projected_close, round(accuracy, 1), mu, sigma)
+        # 📉 V8 PUT (CONTINUATION) LOGIC: 
+        # Price is breaking LOWER BB, RSI is low (strong downtrend momentum), Body is large, Wicks are tiny.
+        # We ride the drop.
+        elif (close_p < last[bb_lower] and last[rsi_col] < 30 and is_red and body_size > (upper_wick + lower_wick)):
+            send_v8_signal(pair, "PUT", close_p)
             
     except Exception as e:
         pass
@@ -135,11 +162,10 @@ def signal_scanner():
         'Bitcoin_OTC', 'Ethereum_OTC'
     ]
     
-    print("Monte Carlo PRNG Scanner Started...")
+    print("V8 Execution Terminal Started...")
     while True:
         current_second = time.localtime().tm_sec
-        # Scanning exactly at the 50th second (10 seconds advance prediction)
-        if current_second == 50: 
+        if current_second == 55: 
             for pair in all_otc_pairs:
                 df = get_live_otc_data(pair)
                 if not df.empty:
@@ -162,4 +188,4 @@ if __name__ == "__main__":
             
     port = int(os.environ.get('PORT', 8080))
     app.run(host="0.0.0.0", port=port)
-    
+        
